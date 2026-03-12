@@ -1,0 +1,20 @@
+{
+  "cycling": true,
+  "screens": [
+    {
+      "id": "clock-1",
+      "type": "clock",
+      "enabled": true,
+      "duration": 10,
+      "order": 0,
+      "settings": {
+        "use24h": false,
+        "timezone": "MST7MDT,M3.2.0,M11.1.0",
+        "complications": ["time", "day_indicator"],
+        "colors": {
+          "time": "#FFFFFF"
+        }
+      }
+    }
+  ]
+}
