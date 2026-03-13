@@ -33,6 +33,7 @@ bool ConfigManager::begin() {
     _brightness = doc["brightness"] | 40;
     _hostname = (doc["hostname"] | "ulanzi");
     _apPassword = (doc["ap_password"] | "12345678");
+    _apiToken = (doc["api_token"] | "");
 
     Serial.printf("[Config] Loaded - SSID: %s, brightness: %d, hostname: %s\n",
                   _wifiSSID.c_str(), _brightness, _hostname.c_str());
@@ -46,6 +47,7 @@ bool ConfigManager::save() {
     doc["brightness"] = _brightness;
     doc["hostname"] = _hostname;
     doc["ap_password"] = _apPassword;
+    doc["api_token"] = _apiToken;
 
     File file = LittleFS.open("/config.json", "w");
     if (!file) {

@@ -9,6 +9,7 @@ Current shipped firmware line includes:
 - Canvas push/draw APIs
 - OTA update endpoint
 - NTP time sync + weather service integration
+- Non-blocking weather network worker with timeout/backoff state machine
 
 ## Hardware
 
@@ -113,12 +114,12 @@ If no token is configured, protected endpoints are open.
 
 | Method | Path | Auth | Notes |
 |---|---|---|---|
-| GET | `/api/status` | No | version, hostname, AP/STA IP, RSSI, heap, uptime |
+| GET | `/api/status` | No | version, hostname, AP/STA IP, RSSI, heap, uptime, weather network-health summary |
 | GET | `/api/config` | Yes | returns masked passwords + `api_token_set` |
 | POST | `/api/config` | Yes | update `brightness`, `hostname`, `ap_password`, `api_token` |
 | POST | `/api/wifi` | Yes | body: `ssid` required, optional `password`; saves + restarts |
 | POST | `/api/update` | Yes | multipart form field `firmware`; OTA then restart |
-| GET | `/api/weather/debug` | No | weather service diagnostics |
+| GET | `/api/weather/debug` | No | weather service diagnostics + network state/backoff/loop timing |
 
 ### Screen endpoints
 
@@ -196,6 +197,20 @@ curl -X POST http://192.168.0.48/api/screens/reorder \
   -d '{"order":["clock-1","weather-1","canvas-1"]}'
 ```
 
+## Weather/network execution model (non-blocking)
+
+Weather networking is decoupled from the main `loop()`:
+
+- Main loop calls `weatherService.update()` which does **bounded work** only.
+- Blocking HTTP (ZIP geocode + Open-Meteo fetch) runs in a dedicated FreeRTOS worker task.
+- The main loop schedules jobs via a small state machine:
+  - `idle` → `geocoding` / `fetching` → `backoff` → `idle`
+- Each network op has a hard timeout (`NET_OP_TIMEOUT`), and failures apply exponential backoff (`NET_BASE_BACKOFF` up to `NET_MAX_BACKOFF`).
+- Sensor fallback reads are split into two phases (kick + later read) to avoid delay-based blocking.
+- OTA/Wi-Fi restart handlers now use deferred restart scheduling (no `delay()` in request handlers).
+
+Operationally, this keeps display/input/web-server responsiveness intact even if weather endpoints are slow or unreachable.
+
 ## API smoke test (common calls)
 
 For a fast confidence pass against common endpoints:
@@ -209,6 +224,18 @@ scripts/api_smoke_check.sh --host 192.168.0.48 --token "$API_TOKEN" --mutating
 ```
 
 Checklist and evidence capture flow: `scripts/API_SMOKE_CHECKLIST.md`.
+
+## Network resilience validation
+
+```bash
+# Read-only latency + diagnostics checks
+BASE_URL=http://192.168.0.48 scripts/validate_network_resilience.sh
+
+# Include degraded-mode mutation checks (invalid ZIP + restore)
+BASE_URL=http://192.168.0.48 API_TOKEN="$API_TOKEN" scripts/validate_network_resilience.sh
+```
+
+Detailed runbook: `scripts/NETWORK_RESILIENCE_CHECKLIST.md`.
 
 ## Notes
 

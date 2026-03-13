@@ -42,6 +42,10 @@ private:
     void handleCanvasDraw();
     void handleCaptivePortal();
     void handleWifiSave();
+    void scheduleRestart(unsigned long delayMs);
+
+    bool isAuthorizedRequest();
+    bool requireAuth();
 
     // Route matching helper
     bool matchRoute(const String& uri, const String& pattern, String& param);
@@ -53,4 +57,7 @@ private:
     DisplayManager* _display = nullptr;
     ScreenManager* _screens = nullptr;
     WeatherService* _weather = nullptr;
+
+    bool _restartPending = false;
+    unsigned long _restartAt = 0;
 };

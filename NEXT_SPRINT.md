@@ -17,7 +17,7 @@ Stabilize and harden the new firmware line while preserving iteration speed.
 
 - [x] Document current API behavior in README (especially defaults + screen controls)
 - [x] Add a small test script/checklist for common API calls _(added `scripts/api_smoke_check.sh` + `scripts/API_SMOKE_CHECKLIST.md`)_
-- [ ] Review blocking network calls and cap worst-case latency paths
+- [x] Review blocking network calls and cap worst-case latency paths _(WeatherService moved to non-blocking state machine + worker task with timeout/backoff; web restart handlers de-blocked; validation: `scripts/validate_network_resilience.sh`, `scripts/NETWORK_RESILIENCE_CHECKLIST.md`)_
 
 ## P2 (cleanup)
 

@@ -1,0 +1,5 @@
+== Baseline API responsiveness ==
+/api/status: n=20 min=0.019s median=0.027s p95=0.031s max=0.309s
+/api/weather/debug: n=20 min=0.019s median=0.026s p95=0.029s max=0.080s
+INFO: API_TOKEN not set, skipping mutating degraded-network check
+PASS: network resilience validation complete

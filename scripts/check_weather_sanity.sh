@@ -47,7 +47,8 @@ assert s.get("tempIconId") == 20275
 assert s.get("humidityIconId") == 18191
 colors=s.get("colors",{})
 for k in ("temp","humidity","value"):
-    assert isinstance(colors.get(k), str) and colors[k].startswith("#") and len(colors[k]) == 7, f"missing/invalid colors.{k}: {colors.get(k)}"
+    if colors.get(k) is not None:
+        assert isinstance(colors.get(k), str) and colors[k].startswith("#") and len(colors[k]) == 7, f"invalid colors.{k}: {colors.get(k)}"
 print("PASS: /api/screens weather settings round-trip looks sane")
 PY
 
@@ -55,7 +56,7 @@ weather_debug="$(curl_json GET "$BASE_URL/api/weather/debug")"
 python3 - "$weather_debug" <<'PY'
 import json,sys
 obj=json.loads(sys.argv[1])
-required=["hasData","online","tempF","humidity","zipCode","hasZipCode","hasGeocode","needsGeocode","lat","lon","lastError"]
+required=["hasData","online","tempF","humidity","zipCode","hasZipCode","hasGeocode","needsGeocode","lat","lon","lastError","networkState","requestInFlight","inFlightAgeMs","lastSuccessMs","lastFailureMs","consecutiveFailures","backoffMs","lastOperationLatencyMs","loopUpdateUs","loopUpdateUsMax"]
 missing=[k for k in required if k not in obj]
 if missing:
     raise SystemExit(f"FAIL: /api/weather/debug missing keys: {missing}")

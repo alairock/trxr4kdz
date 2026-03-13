@@ -1,0 +1,4 @@
+Weather screen id: weather-temp
+PASS: /api/screens weather settings round-trip looks sane
+PASS: /api/weather/debug shape looks sane
+PASS: weather sanity check complete

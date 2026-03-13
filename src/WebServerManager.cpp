@@ -49,6 +49,9 @@ void WebServerManager::begin(ConfigManager& config, WiFiManager& wifi, DisplayMa
     _screens = &screens;
     _weather = weather;
 
+    const char* headerKeys[] = {"X-API-Key"};
+    _server.collectHeaders(headerKeys, 1);
+
     // Captive portal - serve WiFi setup page
     _server.on("/", HTTP_GET, [this]() { handleCaptivePortal(); });
     _server.on("/generate_204", HTTP_GET, [this]() { handleCaptivePortal(); });  // Android
@@ -74,6 +77,16 @@ void WebServerManager::begin(ConfigManager& config, WiFiManager& wifi, DisplayMa
         doc["lat"] = _weather->getLat();
         doc["lon"] = _weather->getLon();
         doc["lastError"] = _weather->getLastError();
+        doc["networkState"] = _weather->getNetworkState();
+        doc["requestInFlight"] = _weather->isRequestInFlight();
+        doc["inFlightAgeMs"] = _weather->getInFlightAgeMs();
+        doc["lastSuccessMs"] = _weather->getLastSuccessMs();
+        doc["lastFailureMs"] = _weather->getLastFailureMs();
+        doc["consecutiveFailures"] = _weather->getConsecutiveFailures();
+        doc["backoffMs"] = _weather->getBackoffMs();
+        doc["lastOperationLatencyMs"] = _weather->getLastOperationLatencyMs();
+        doc["loopUpdateUs"] = _weather->getLastLoopUpdateUs();
+        doc["loopUpdateUsMax"] = _weather->getMaxLoopUpdateUs();
         String json;
         serializeJson(doc, json);
         _server.send(200, "application/json", json);
@@ -133,6 +146,10 @@ void WebServerManager::begin(ConfigManager& config, WiFiManager& wifi, DisplayMa
 void WebServerManager::update() {
     _dns.processNextRequest();
     _server.handleClient();
+
+    if (_restartPending && (long)(millis() - _restartAt) >= 0) {
+        ESP.restart();
+    }
 }
 
 void WebServerManager::handleCaptivePortal() {
@@ -162,6 +179,23 @@ bool WebServerManager::matchRoute(const String& uri, const String& pattern, Stri
     return param.length() > 0;
 }
 
+bool WebServerManager::isAuthorizedRequest() {
+    String token = _config->getApiToken();
+    if (token.length() == 0) return true;  // token not configured
+
+    String supplied = _server.header("X-API-Key");
+    if (supplied.length() == 0 && _server.hasArg("token")) {
+        supplied = _server.arg("token");
+    }
+    return supplied == token;
+}
+
+bool WebServerManager::requireAuth() {
+    if (isAuthorizedRequest()) return true;
+    _server.send(401, "application/json", "{\"error\":\"unauthorized\"}");
+    return false;
+}
+
 // --- Existing handlers ---
 
 void WebServerManager::handleStatus() {
@@ -175,18 +209,36 @@ void WebServerManager::handleStatus() {
     doc["free_heap"] = ESP.getFreeHeap();
     doc["uptime_s"] = millis() / 1000;
 
+    if (_weather) {
+        JsonObject weather = doc["weather"].to<JsonObject>();
+        weather["network_state"] = _weather->getNetworkState();
+        weather["request_in_flight"] = _weather->isRequestInFlight();
+        weather["in_flight_age_ms"] = _weather->getInFlightAgeMs();
+        weather["last_success_ms"] = _weather->getLastSuccessMs();
+        weather["last_failure_ms"] = _weather->getLastFailureMs();
+        weather["consecutive_failures"] = _weather->getConsecutiveFailures();
+        weather["backoff_ms"] = _weather->getBackoffMs();
+        weather["last_op_latency_ms"] = _weather->getLastOperationLatencyMs();
+        weather["loop_update_us"] = _weather->getLastLoopUpdateUs();
+        weather["loop_update_us_max"] = _weather->getMaxLoopUpdateUs();
+        weather["last_error"] = _weather->getLastError();
+    }
+
     String json;
     serializeJson(doc, json);
     _server.send(200, "application/json", json);
 }
 
 void WebServerManager::handleGetConfig() {
+    if (!requireAuth()) return;
+
     JsonDocument doc;
     doc["wifi_ssid"] = _config->getWifiSSID();
     doc["wifi_password"] = "********";
     doc["brightness"] = _config->getBrightness();
     doc["hostname"] = _config->getHostname();
     doc["ap_password"] = "********";
+    doc["api_token_set"] = _config->getApiToken().length() > 0;
 
     String json;
     serializeJson(doc, json);
@@ -194,6 +246,8 @@ void WebServerManager::handleGetConfig() {
 }
 
 void WebServerManager::handlePostConfig() {
+    if (!requireAuth()) return;
+
     if (!_server.hasArg("plain")) {
         _server.send(400, "application/json", "{\"error\":\"no body\"}");
         return;
@@ -215,12 +269,22 @@ void WebServerManager::handlePostConfig() {
     if (doc["ap_password"].is<const char*>()) {
         _config->setAPPassword(doc["ap_password"].as<String>());
     }
+    if (doc["api_token"].is<const char*>()) {
+        _config->setApiToken(doc["api_token"].as<String>());
+    }
 
     _config->save();
     _server.send(200, "application/json", "{\"status\":\"ok\"}");
 }
 
+void WebServerManager::scheduleRestart(unsigned long delayMs) {
+    _restartAt = millis() + delayMs;
+    _restartPending = true;
+}
+
 void WebServerManager::handlePostWifi() {
+    if (!requireAuth()) return;
+
     if (!_server.hasArg("plain")) {
         _server.send(400, "application/json", "{\"error\":\"no body\"}");
         return;
@@ -246,23 +310,25 @@ void WebServerManager::handlePostWifi() {
 
     _server.send(200, "application/json", "{\"status\":\"connecting\"}");
     _display->showSmallRainbow("WiFi...");
-    delay(1000);
-    ESP.restart();
+    scheduleRestart(1000);
 }
 
 void WebServerManager::handleUpdate() {
+    if (!requireAuth()) return;
+
     if (Update.hasError()) {
         _server.send(500, "application/json", "{\"error\":\"update failed\"}");
         _display->showSmallRainbow("FAIL");
     } else {
         _server.send(200, "application/json", "{\"status\":\"ok, restarting\"}");
         _display->showSmallRainbow("trxr4kdz");
-        delay(1000);
-        ESP.restart();
+        scheduleRestart(1000);
     }
 }
 
 void WebServerManager::handleUpdateUpload() {
+    if (!isAuthorizedRequest()) return;
+
     HTTPUpload& upload = _server.upload();
 
     if (upload.status == UPLOAD_FILE_START) {
@@ -314,6 +380,8 @@ void WebServerManager::handleGetScreen() {
 }
 
 void WebServerManager::handlePostScreen() {
+    if (!requireAuth()) return;
+
     if (!_server.hasArg("plain")) {
         _server.send(400, "application/json", "{\"error\":\"no body\"}");
         return;
@@ -361,6 +429,8 @@ void WebServerManager::handlePostScreen() {
 }
 
 void WebServerManager::handlePutScreen() {
+    if (!requireAuth()) return;
+
     String uri = _server.uri();
     String id = uri.substring(String("/api/screens/").length());
     int slash = id.indexOf('/');
@@ -400,6 +470,8 @@ void WebServerManager::handlePutScreen() {
 }
 
 void WebServerManager::handleDeleteScreen() {
+    if (!requireAuth()) return;
+
     String uri = _server.uri();
     String id = uri.substring(String("/api/screens/").length());
     int slash = id.indexOf('/');
@@ -414,6 +486,8 @@ void WebServerManager::handleDeleteScreen() {
 }
 
 void WebServerManager::handleScreenEnable() {
+    if (!requireAuth()) return;
+
     String uri = _server.uri();
     // /api/screens/{id}/enable
     String id = uri.substring(String("/api/screens/").length());
@@ -431,6 +505,8 @@ void WebServerManager::handleScreenEnable() {
 }
 
 void WebServerManager::handleScreenDisable() {
+    if (!requireAuth()) return;
+
     String uri = _server.uri();
     // /api/screens/{id}/disable
     String id = uri.substring(String("/api/screens/").length());
@@ -448,6 +524,8 @@ void WebServerManager::handleScreenDisable() {
 }
 
 void WebServerManager::handleScreensReorder() {
+    if (!requireAuth()) return;
+
     if (!_server.hasArg("plain")) {
         _server.send(400, "application/json", "{\"error\":\"no body\"}");
         return;
@@ -479,11 +557,15 @@ void WebServerManager::handleScreensReorder() {
 }
 
 void WebServerManager::handleScreensNext() {
+    if (!requireAuth()) return;
+
     _screens->nextScreen();
     _server.send(200, "application/json", "{\"status\":\"ok\"}");
 }
 
 void WebServerManager::handleScreensCycling() {
+    if (!requireAuth()) return;
+
     if (!_server.hasArg("plain")) {
         _server.send(400, "application/json", "{\"error\":\"no body\"}");
         return;
@@ -513,6 +595,8 @@ void WebServerManager::handleGetScreenDefaults() {
 }
 
 void WebServerManager::handlePutScreenDefaults() {
+    if (!requireAuth()) return;
+
     if (!_server.hasArg("plain")) {
         _server.send(400, "application/json", "{\"error\":\"no body\"}");
         return;
@@ -536,6 +620,8 @@ void WebServerManager::handlePutScreenDefaults() {
 }
 
 void WebServerManager::handleCanvasPush() {
+    if (!requireAuth()) return;
+
     String uri = _server.uri();
     // /api/canvas/{id}
     String id = uri.substring(String("/api/canvas/").length());
@@ -577,6 +663,8 @@ void WebServerManager::handleCanvasPush() {
 }
 
 void WebServerManager::handleCanvasDraw() {
+    if (!requireAuth()) return;
+
     String uri = _server.uri();
     // /api/canvas/{id}/draw
     String id = uri.substring(String("/api/canvas/").length());

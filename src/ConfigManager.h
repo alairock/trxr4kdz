@@ -14,12 +14,14 @@ public:
     uint8_t getBrightness() const { return _brightness; }
     String getHostname() const { return _hostname; }
     String getAPPassword() const { return _apPassword; }
+    String getApiToken() const { return _apiToken; }
 
     void setWifiSSID(const String& v) { _wifiSSID = v; }
     void setWifiPassword(const String& v) { _wifiPassword = v; }
     void setBrightness(uint8_t v) { _brightness = v; }
     void setHostname(const String& v) { _hostname = v; }
     void setAPPassword(const String& v) { _apPassword = v; }
+    void setApiToken(const String& v) { _apiToken = v; }
 
     bool hasWifiCredentials() const { return _wifiSSID.length() > 0 && _wifiPassword.length() > 0; }
 
@@ -32,5 +34,6 @@ private:
     uint8_t _brightness = 40;
     String _hostname = "ulanzi";
     String _apPassword = "12345678";
+    String _apiToken = "";
     Preferences _prefs;
 };
