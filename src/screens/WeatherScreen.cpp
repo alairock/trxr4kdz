@@ -26,6 +26,29 @@ static const uint8_t LAMETRIC_18191_HUMIDITY[8] = {
     0b00111110
 };
 
+// RGB565 8x8 color maps from Lametric icon thumbs (0x0000 means transparent)
+static const uint16_t LAMETRIC_20275_THERMOMETER_RGB565[64] = {
+    0x0000,0x0000,0xFFFF,0xFFFF,0xFFFF,0x0000,0x0000,0x0000,
+    0x0000,0x0000,0xFFFF,0x0000,0xFFFF,0x0000,0x0000,0x0000,
+    0x0000,0x0000,0xFFFF,0xF002,0xFFFF,0x0000,0x0000,0x0000,
+    0x0000,0x0000,0xFFFF,0xF002,0xFFFF,0x0000,0x0000,0x0000,
+    0x0000,0x0000,0xFFFF,0xF002,0xFFFF,0x0000,0x0000,0x0000,
+    0x0000,0xFFFF,0xF002,0xF002,0xF002,0xFFFF,0x0000,0x0000,
+    0x0000,0xFFFF,0xF002,0xF002,0xF002,0xFFFF,0x0000,0x0000,
+    0x0000,0x0000,0xFFFF,0xFFFF,0xFFFF,0x0000,0x0000,0x0000,
+};
+
+static const uint16_t LAMETRIC_18191_HUMIDITY_RGB565[64] = {
+    0x0000,0x0000,0x0000,0x0000,0x041F,0x0000,0x0000,0x0000,
+    0x0000,0x0000,0x0000,0x041F,0x041F,0x041F,0x0000,0x0000,
+    0x0000,0x0000,0x041F,0x041F,0x041F,0x041F,0x041F,0x0000,
+    0x0000,0x041F,0x041F,0x041F,0x041F,0x041F,0x041F,0x041F,
+    0x0000,0x041F,0x041F,0x041F,0x46FE,0x46FE,0x041F,0x041F,
+    0x0000,0x041F,0x041F,0x46FE,0x46FE,0x46FE,0x46FE,0x041F,
+    0x0000,0x041F,0x041F,0x041F,0x46FE,0x46FE,0x041F,0x041F,
+    0x0000,0x0000,0x041F,0x041F,0x041F,0x041F,0x041F,0x0000,
+};
+
 void WeatherScreen::setZipCode(const String& zip) {
     _zipCode = zip;
     if (_weather) _weather->setZipCode(zip);
@@ -36,6 +59,26 @@ const uint8_t* WeatherScreen::getLametricIconBitmap(uint32_t id) const {
         case 20275: return LAMETRIC_20275_THERMOMETER;
         case 18191: return LAMETRIC_18191_HUMIDITY;
         default: return nullptr;
+    }
+}
+
+const uint16_t* WeatherScreen::getLametricIconColor8x8(uint32_t id) const {
+    switch (id) {
+        case 20275: return LAMETRIC_20275_THERMOMETER_RGB565;
+        case 18191: return LAMETRIC_18191_HUMIDITY_RGB565;
+        default: return nullptr;
+    }
+}
+
+void WeatherScreen::drawLametricColorIcon(DisplayManager& display, int16_t ox, int16_t oy, const uint16_t* px) const {
+    if (!px) return;
+    for (int y = 0; y < 8; y++) {
+        for (int x = 0; x < 8; x++) {
+            uint16_t c = px[y * 8 + x];
+            if (c != 0x0000) {
+                display.drawPixel(ox + x, oy + y, c);
+            }
+        }
     }
 }
 
@@ -88,6 +131,12 @@ void WeatherScreen::drawValue(DisplayManager& display, int16_t ox, int16_t oy,
 
 // 8x8 thermometer icon
 void WeatherScreen::drawThermometerIcon(DisplayManager& display, int16_t ox, int16_t oy, uint16_t color) {
+    const uint16_t* iconColor = getLametricIconColor8x8(_tempIconId);
+    if (iconColor) {
+        drawLametricColorIcon(display, ox, oy, iconColor);
+        return;
+    }
+
     const uint8_t* icon = getLametricIconBitmap(_tempIconId);
     if (icon) {
         display.drawBitmap(ox, oy, icon, 8, 8, color);
@@ -120,6 +169,12 @@ void WeatherScreen::drawThermometerIcon(DisplayManager& display, int16_t ox, int
 
 // 8x8 water droplet icon
 void WeatherScreen::drawDropletIcon(DisplayManager& display, int16_t ox, int16_t oy, uint16_t color) {
+    const uint16_t* iconColor = getLametricIconColor8x8(_humIconId);
+    if (iconColor) {
+        drawLametricColorIcon(display, ox, oy, iconColor);
+        return;
+    }
+
     const uint8_t* icon = getLametricIconBitmap(_humIconId);
     if (icon) {
         display.drawBitmap(ox, oy, icon, 8, 8, color);

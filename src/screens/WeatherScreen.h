@@ -19,6 +19,8 @@ public:
 
 private:
     const uint8_t* getLametricIconBitmap(uint32_t id) const;
+    const uint16_t* getLametricIconColor8x8(uint32_t id) const;
+    void drawLametricColorIcon(DisplayManager& display, int16_t ox, int16_t oy, const uint16_t* px) const;
     void drawThermometerIcon(DisplayManager& display, int16_t ox, int16_t oy, uint16_t color);
     void drawDropletIcon(DisplayManager& display, int16_t ox, int16_t oy, uint16_t color);
     void drawValue(DisplayManager& display, int16_t ox, int16_t oy, const char* text, uint16_t color, uint8_t fontId);
