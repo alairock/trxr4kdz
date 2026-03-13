@@ -9,9 +9,9 @@ Stabilize and harden the new firmware line while preserving iteration speed.
 - [x] Validate defaults API end-to-end (create/update/persist/reboot)
 - [ ] Add a quick firmware regression pass:
   - [ ] boot + Wi-Fi join/captive fallback
-  - [ ] screen cycling play/pause behavior
+  - [x] screen cycling play/pause behavior
   - [x] binary clock mode correctness
-  - [ ] weather screen render sanity
+  - [x] weather screen render sanity
 
 ## P1 (high value)
 

@@ -1,0 +1,84 @@
+PASS: screen cycling play/pause/scrub validated
+{
+  "host": "192.168.0.48",
+  "ts": 1773439063,
+  "checks": [
+    {
+      "pause_resp": {
+        "cycling": false
+      }
+    },
+    {
+      "pause_hold": {
+        "before": "clock-1",
+        "after": "clock-1",
+        "wait_s": 12.0
+      }
+    },
+    {
+      "scrub_next": {
+        "from": "clock-1",
+        "to": "weather-temp",
+        "resp": {
+          "status": "ok"
+        }
+      }
+    },
+    {
+      "pause_after_scrub_hold": {
+        "before": "weather-temp",
+        "after": "weather-temp",
+        "wait_s": 12.0
+      }
+    },
+    {
+      "resume_play": {
+        "from": "weather-temp",
+        "to": "weather-humidity",
+        "expected_next": "weather-humidity",
+        "wait_s": 12.0,
+        "resp": {
+          "cycling": true
+        }
+      }
+    }
+  ],
+  "initial": {
+    "cycling": false,
+    "activeScreen": "clock-1",
+    "screens": [
+      {
+        "id": "clock-1",
+        "type": "clock",
+        "enabled": true,
+        "duration": 10,
+        "order": 0,
+        "active": true
+      },
+      {
+        "id": "weather-temp",
+        "type": "weather",
+        "enabled": true,
+        "duration": 10,
+        "order": 1,
+        "active": false
+      },
+      {
+        "id": "weather-humidity",
+        "type": "weather",
+        "enabled": true,
+        "duration": 10,
+        "order": 2,
+        "active": false
+      },
+      {
+        "id": "binary-clock-1",
+        "type": "binary_clock",
+        "enabled": true,
+        "duration": 10,
+        "order": 3,
+        "active": false
+      }
+    ]
+  }
+}
