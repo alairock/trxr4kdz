@@ -13,6 +13,13 @@ class WeatherService;
 
 class ScreenManager {
 public:
+    struct Defaults {
+        bool use24h = false;
+        String timezone = "MST7MDT,M3.2.0,M11.1.0";
+        uint8_t font = 1;
+        String defaultColor = "#FFFFFF";
+    };
+
     void begin(DisplayManager& display, WeatherService* weather = nullptr);
     void update();
 
@@ -43,6 +50,8 @@ public:
     // Serialization for API
     void serializeAll(JsonDocument& doc) const;
     void serializeScreen(const String& id, JsonDocument& doc) const;
+    void serializeDefaults(JsonDocument& doc) const;
+    void updateDefaults(const JsonObjectConst& cfg);
 
 private:
     Screen* createScreenByType(ScreenType type);
@@ -50,6 +59,7 @@ private:
     int findNextEnabled(int from, int dir = 1);
     void sortByOrder();
     String generateId(const char* typeName);
+    void applyDefaultsToScreen(Screen* s);
 
     Screen* _screens[MAX_SCREENS] = {};
     uint8_t _count = 0;
@@ -59,4 +69,5 @@ private:
     DisplayManager* _display = nullptr;
     WeatherService* _weatherService = nullptr;
     bool _started = false;
+    Defaults _defaults;
 };

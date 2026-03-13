@@ -36,6 +36,8 @@ private:
     void handleScreensReorder();
     void handleScreensNext();
     void handleScreensCycling();
+    void handleGetScreenDefaults();
+    void handlePutScreenDefaults();
     void handleCanvasPush();
     void handleCanvasDraw();
     void handleCaptivePortal();

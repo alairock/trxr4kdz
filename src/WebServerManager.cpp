@@ -92,6 +92,8 @@ void WebServerManager::begin(ConfigManager& config, WiFiManager& wifi, DisplayMa
     _server.on("/api/screens/next", HTTP_POST, [this]() { handleScreensNext(); });
     _server.on("/api/screens/reorder", HTTP_POST, [this]() { handleScreensReorder(); });
     _server.on("/api/screens/cycling", HTTP_PUT, [this]() { handleScreensCycling(); });
+    _server.on("/api/screens/defaults", HTTP_GET, [this]() { handleGetScreenDefaults(); });
+    _server.on("/api/screens/defaults", HTTP_PUT, [this]() { handlePutScreenDefaults(); });
 
     // Dynamic routes via onNotFound
     _server.onNotFound([this]() {
@@ -499,6 +501,37 @@ void WebServerManager::handleScreensCycling() {
     _screens->save();
 
     String json = enabled ? "{\"cycling\":true}" : "{\"cycling\":false}";
+    _server.send(200, "application/json", json);
+}
+
+void WebServerManager::handleGetScreenDefaults() {
+    JsonDocument doc;
+    _screens->serializeDefaults(doc);
+    String json;
+    serializeJson(doc, json);
+    _server.send(200, "application/json", json);
+}
+
+void WebServerManager::handlePutScreenDefaults() {
+    if (!_server.hasArg("plain")) {
+        _server.send(400, "application/json", "{\"error\":\"no body\"}");
+        return;
+    }
+
+    JsonDocument doc;
+    DeserializationError err = deserializeJson(doc, _server.arg("plain"));
+    if (err || !doc.is<JsonObject>()) {
+        _server.send(400, "application/json", "{\"error\":\"invalid json\"}");
+        return;
+    }
+
+    _screens->updateDefaults(doc.as<JsonObjectConst>());
+    _screens->save();
+
+    JsonDocument out;
+    _screens->serializeDefaults(out);
+    String json;
+    serializeJson(out, json);
     _server.send(200, "application/json", json);
 }
 

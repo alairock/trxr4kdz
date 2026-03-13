@@ -66,6 +66,7 @@ Screen* ScreenManager::addScreen(ScreenType type, const String& id) {
 
     s->id = id.length() > 0 ? id : generateId(s->typeName());
     s->order = _count;
+    applyDefaultsToScreen(s);
     _screens[_count++] = s;
     return s;
 }
@@ -226,6 +227,41 @@ ScreenType ScreenManager::typeFromString(const char* name) {
     return ScreenType::CLOCK; // default
 }
 
+void ScreenManager::applyDefaultsToScreen(Screen* s) {
+    if (!s) return;
+    JsonDocument doc;
+    JsonObject cfg = doc.to<JsonObject>();
+    cfg["use24h"] = _defaults.use24h;
+    cfg["timezone"] = _defaults.timezone;
+    cfg["font"] = _defaults.font;
+
+    JsonObject colors = cfg["colors"].to<JsonObject>();
+    colors["time"] = _defaults.defaultColor;
+    colors["date"] = _defaults.defaultColor;
+    colors["icon"] = _defaults.defaultColor;
+    colors["calendar"] = _defaults.defaultColor;
+
+    // Convenience for non-clock screens that use simple color fields
+    cfg["color"] = _defaults.defaultColor;
+    cfg["onColor"] = _defaults.defaultColor;
+
+    s->configure(static_cast<JsonObjectConst>(cfg));
+}
+
+void ScreenManager::serializeDefaults(JsonDocument& doc) const {
+    doc["use24h"] = _defaults.use24h;
+    doc["timezone"] = _defaults.timezone;
+    doc["font"] = _defaults.font;
+    doc["defaultColor"] = _defaults.defaultColor;
+}
+
+void ScreenManager::updateDefaults(const JsonObjectConst& cfg) {
+    if (cfg["use24h"].is<bool>()) _defaults.use24h = cfg["use24h"].as<bool>();
+    if (cfg["timezone"].is<const char*>()) _defaults.timezone = cfg["timezone"].as<String>();
+    if (cfg["font"].is<int>()) _defaults.font = cfg["font"].as<uint8_t>();
+    if (cfg["defaultColor"].is<const char*>()) _defaults.defaultColor = cfg["defaultColor"].as<String>();
+}
+
 // Persistence
 bool ScreenManager::load() {
     File f = LittleFS.open("/screens.json", "r");
@@ -240,6 +276,10 @@ bool ScreenManager::load() {
     }
 
     _cycling = doc["cycling"] | true;
+
+    if (doc["defaults"].is<JsonObjectConst>()) {
+        updateDefaults(doc["defaults"].as<JsonObjectConst>());
+    }
 
     JsonArray screens = doc["screens"].as<JsonArray>();
     if (!screens) return false;
@@ -267,6 +307,12 @@ bool ScreenManager::load() {
 bool ScreenManager::save() {
     JsonDocument doc;
     doc["cycling"] = _cycling;
+
+    JsonObject defs = doc["defaults"].to<JsonObject>();
+    defs["use24h"] = _defaults.use24h;
+    defs["timezone"] = _defaults.timezone;
+    defs["font"] = _defaults.font;
+    defs["defaultColor"] = _defaults.defaultColor;
 
     JsonArray screens = doc["screens"].to<JsonArray>();
     for (uint8_t i = 0; i < _count; i++) {
