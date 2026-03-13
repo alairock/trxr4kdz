@@ -16,7 +16,7 @@ Stabilize and harden the new firmware line while preserving iteration speed.
 ## P1 (high value)
 
 - [x] Document current API behavior in README (especially defaults + screen controls)
-- [ ] Add a small test script/checklist for common API calls
+- [x] Add a small test script/checklist for common API calls _(added `scripts/api_smoke_check.sh` + `scripts/API_SMOKE_CHECKLIST.md`)_
 - [ ] Review blocking network calls and cap worst-case latency paths
 
 ## P2 (cleanup)

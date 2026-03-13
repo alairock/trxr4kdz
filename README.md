@@ -196,6 +196,20 @@ curl -X POST http://192.168.0.48/api/screens/reorder \
   -d '{"order":["clock-1","weather-1","canvas-1"]}'
 ```
 
+## API smoke test (common calls)
+
+For a fast confidence pass against common endpoints:
+
+```bash
+# Read-only checks
+scripts/api_smoke_check.sh --host 192.168.0.48
+
+# Include auth/write-path checks when token is set
+scripts/api_smoke_check.sh --host 192.168.0.48 --token "$API_TOKEN" --mutating
+```
+
+Checklist and evidence capture flow: `scripts/API_SMOKE_CHECKLIST.md`.
+
 ## Notes
 
 - `/api/screens/defaults` is intentionally read-open and write-protected.
