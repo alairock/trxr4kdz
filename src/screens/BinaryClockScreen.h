@@ -31,4 +31,6 @@ private:
     uint16_t _offColor = 0x580B;     // slightly brighter dim purple (AM + unlit dots)
     uint16_t _pmColor = 0xF800;      // legacy PM color fallback
     IndicatorMode _indicatorMode = IndicatorMode::RED;
+    bool _useOnMode = false;
+    IndicatorMode _onMode = IndicatorMode::PURPLE;
 };

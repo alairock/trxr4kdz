@@ -81,7 +81,10 @@ bool BinaryClockScreen::update(DisplayManager& display, unsigned long now) {
         for (int bit = 0; bit < 4; bit++) {
             bool on = (digits[i] >> bit) & 1;
             int y = 6 - (bit * 2); // bit0 at bottom rows 6-7
-            uint16_t c = on ? _onColor : _offColor;
+            uint16_t c = _offColor;
+            if (on) {
+                c = _useOnMode ? colorForMode(_onMode, now, (uint8_t)(i * 4 + bit)) : _onColor;
+            }
             display.drawPixel(x, y, c);
             display.drawPixel(x + 1, y, c);
             display.drawPixel(x, y + 1, c);
@@ -119,16 +122,25 @@ bool BinaryClockScreen::update(DisplayManager& display, unsigned long now) {
 
 void BinaryClockScreen::configure(const JsonObjectConst& cfg) {
     if (cfg["use24h"].is<bool>()) _use24h = cfg["use24h"].as<bool>();
-    if (cfg["onColor"].is<const char*>()) _onColor = DisplayManager::hexToColor(cfg["onColor"].as<String>());
+    if (cfg["onColor"].is<const char*>()) {
+        _onColor = DisplayManager::hexToColor(cfg["onColor"].as<String>());
+        _useOnMode = false;
+    }
     if (cfg["offColor"].is<const char*>()) _offColor = DisplayManager::hexToColor(cfg["offColor"].as<String>());
     if (cfg["pmColor"].is<const char*>()) _pmColor = DisplayManager::hexToColor(cfg["pmColor"].as<String>());
 
     if (cfg["indicatorMode"].is<const char*>()) {
         _indicatorMode = modeFromString(cfg["indicatorMode"].as<String>());
     }
+
+    if (cfg["onMode"].is<const char*>()) {
+        _onMode = modeFromString(cfg["onMode"].as<String>());
+        _useOnMode = true;
+    }
 }
 
 void BinaryClockScreen::serialize(JsonObject& out) const {
     out["use24h"] = _use24h;
     out["indicatorMode"] = modeToString(_indicatorMode);
+    out["onMode"] = _useOnMode ? modeToString(_onMode) : "custom";
 }
