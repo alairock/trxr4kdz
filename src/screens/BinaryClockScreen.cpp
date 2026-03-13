@@ -6,8 +6,11 @@ bool BinaryClockScreen::update(DisplayManager& display, unsigned long now) {
     (void)now;
     display.clear();
 
-    struct tm* t = timer_localtime();
-    int h24 = t->tm_hour;
+    time_t nowSec = time(nullptr);
+    struct tm tinfo{};
+    localtime_r(&nowSec, &tinfo);
+
+    int h24 = tinfo.tm_hour;
     bool isPM = h24 >= 12;
 
     int h = h24;
@@ -18,8 +21,8 @@ bool BinaryClockScreen::update(DisplayManager& display, unsigned long now) {
 
     int digits[6] = {
         h / 10, h % 10,
-        t->tm_min / 10, t->tm_min % 10,
-        t->tm_sec / 10, t->tm_sec % 10
+        tinfo.tm_min / 10, tinfo.tm_min % 10,
+        tinfo.tm_sec / 10, tinfo.tm_sec % 10
     };
 
     // 6 columns of 2px + 1px spacing, plus 2 wider group gaps => 22px total.
