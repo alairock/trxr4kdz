@@ -18,6 +18,7 @@ public:
     void setZipCode(const String& zip);
 
 private:
+    const uint8_t* getLametricIconBitmap(uint32_t id) const;
     void drawThermometerIcon(DisplayManager& display, int16_t ox, int16_t oy, uint16_t color);
     void drawDropletIcon(DisplayManager& display, int16_t ox, int16_t oy, uint16_t color);
     void drawValue(DisplayManager& display, int16_t ox, int16_t oy, const char* text, uint16_t color, uint8_t fontId);
@@ -27,6 +28,8 @@ private:
     uint16_t _tempColor = 0xFBE0;   // orange
     uint16_t _humColor = 0x07FF;    // cyan
     uint8_t _fontId = 1;
+    uint32_t _tempIconId = 20275;   // Lametric thermometer
+    uint32_t _humIconId = 18191;    // Lametric humidity
 
     // Alternate between temp and humidity
     unsigned long _lastFlip = 0;
