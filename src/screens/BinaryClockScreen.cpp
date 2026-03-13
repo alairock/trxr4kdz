@@ -1,9 +1,58 @@
 #include "BinaryClockScreen.h"
 #include "../DisplayManager.h"
 #include <time.h>
+#include <FastLED.h>
+
+uint16_t BinaryClockScreen::colorForMode(IndicatorMode mode, unsigned long now, uint8_t slot) const {
+    switch (mode) {
+        case IndicatorMode::WHITE: return 0xFFFF;
+        case IndicatorMode::RED: return 0xF800;
+        case IndicatorMode::GREEN: return 0x07E0;
+        case IndicatorMode::BLUE: return 0x001F;
+        case IndicatorMode::PINK: return 0xF81F;
+        case IndicatorMode::PURPLE: return 0x8010;
+        case IndicatorMode::RAINBOW_STATIC: {
+            static const uint16_t c[4] = {0xF800, 0xFD20, 0x07E0, 0x001F}; // R,O,G,B
+            return c[slot % 4];
+        }
+        case IndicatorMode::RAINBOW_ANIMATED: {
+            uint8_t hue = (uint8_t)((now / 20) + (slot * 48));
+            CRGB c = CHSV(hue, 255, 255);
+            return DisplayManager::rgb565(c.r, c.g, c.b);
+        }
+    }
+    return _pmColor;
+}
+
+BinaryClockScreen::IndicatorMode BinaryClockScreen::modeFromString(const String& s) const {
+    String m = s;
+    m.toLowerCase();
+    if (m == "white") return IndicatorMode::WHITE;
+    if (m == "red") return IndicatorMode::RED;
+    if (m == "green") return IndicatorMode::GREEN;
+    if (m == "blue") return IndicatorMode::BLUE;
+    if (m == "pink") return IndicatorMode::PINK;
+    if (m == "purple") return IndicatorMode::PURPLE;
+    if (m == "rainbow" || m == "rainbow_static" || m == "static_rainbow") return IndicatorMode::RAINBOW_STATIC;
+    if (m == "rainbow_animated" || m == "animated_rainbow") return IndicatorMode::RAINBOW_ANIMATED;
+    return IndicatorMode::RED;
+}
+
+const char* BinaryClockScreen::modeToString(IndicatorMode m) const {
+    switch (m) {
+        case IndicatorMode::WHITE: return "white";
+        case IndicatorMode::RED: return "red";
+        case IndicatorMode::GREEN: return "green";
+        case IndicatorMode::BLUE: return "blue";
+        case IndicatorMode::PINK: return "pink";
+        case IndicatorMode::PURPLE: return "purple";
+        case IndicatorMode::RAINBOW_STATIC: return "rainbow_static";
+        case IndicatorMode::RAINBOW_ANIMATED: return "rainbow_animated";
+    }
+    return "red";
+}
 
 bool BinaryClockScreen::update(DisplayManager& display, unsigned long now) {
-    (void)now;
     display.clear();
 
     time_t nowSec = time(nullptr);
@@ -43,12 +92,27 @@ bool BinaryClockScreen::update(DisplayManager& display, unsigned long now) {
         if (i == 1 || i == 3) x += 1; // extra group spacing between HH MM SS
     }
 
-    // AM/PM dot at top-left (requested): AM dim purple, PM red
-    uint16_t ap = isPM ? _pmColor : _offColor;
-    display.drawPixel(0, 0, ap);
-    display.drawPixel(1, 0, ap);
-    display.drawPixel(0, 1, ap);
-    display.drawPixel(1, 1, ap);
+    // AM/PM indicator at top-left:
+    // AM => dim purple, PM => selected indicator mode
+    if (!isPM) {
+        display.drawPixel(0, 0, _offColor);
+        display.drawPixel(1, 0, _offColor);
+        display.drawPixel(0, 1, _offColor);
+        display.drawPixel(1, 1, _offColor);
+    } else {
+        if (_indicatorMode == IndicatorMode::RAINBOW_STATIC || _indicatorMode == IndicatorMode::RAINBOW_ANIMATED) {
+            display.drawPixel(0, 0, colorForMode(_indicatorMode, now, 0));
+            display.drawPixel(1, 0, colorForMode(_indicatorMode, now, 1));
+            display.drawPixel(0, 1, colorForMode(_indicatorMode, now, 2));
+            display.drawPixel(1, 1, colorForMode(_indicatorMode, now, 3));
+        } else {
+            uint16_t ap = colorForMode(_indicatorMode, now, 0);
+            display.drawPixel(0, 0, ap);
+            display.drawPixel(1, 0, ap);
+            display.drawPixel(0, 1, ap);
+            display.drawPixel(1, 1, ap);
+        }
+    }
 
     return true;
 }
@@ -58,8 +122,13 @@ void BinaryClockScreen::configure(const JsonObjectConst& cfg) {
     if (cfg["onColor"].is<const char*>()) _onColor = DisplayManager::hexToColor(cfg["onColor"].as<String>());
     if (cfg["offColor"].is<const char*>()) _offColor = DisplayManager::hexToColor(cfg["offColor"].as<String>());
     if (cfg["pmColor"].is<const char*>()) _pmColor = DisplayManager::hexToColor(cfg["pmColor"].as<String>());
+
+    if (cfg["indicatorMode"].is<const char*>()) {
+        _indicatorMode = modeFromString(cfg["indicatorMode"].as<String>());
+    }
 }
 
 void BinaryClockScreen::serialize(JsonObject& out) const {
     out["use24h"] = _use24h;
+    out["indicatorMode"] = modeToString(_indicatorMode);
 }
