@@ -217,10 +217,19 @@ void WeatherScreen::configure(const JsonObjectConst& cfg) {
     if (cfg["humidityIconId"].is<int>()) _humIconId = cfg["humidityIconId"].as<uint32_t>();
     if (cfg["colors"].is<JsonObjectConst>()) {
         JsonObjectConst colors = cfg["colors"];
-        if (colors["temp"].is<const char*>())
-            _tempColor = DisplayManager::hexToColor(colors["temp"].as<String>());
-        if (colors["humidity"].is<const char*>())
-            _humColor = DisplayManager::hexToColor(colors["humidity"].as<String>());
+        if (colors["temp"].is<const char*>()) {
+            uint16_t c = DisplayManager::hexToColor(colors["temp"].as<String>());
+            _tempColor = c;
+            _tempIconColor = c;
+        }
+        if (colors["humidity"].is<const char*>()) {
+            uint16_t c = DisplayManager::hexToColor(colors["humidity"].as<String>());
+            _humColor = c;
+            _humIconColor = c;
+        }
+        if (colors["value"].is<const char*>()) {
+            _valueColor = DisplayManager::hexToColor(colors["value"].as<String>());
+        }
     }
 }
 
@@ -230,4 +239,24 @@ void WeatherScreen::serialize(JsonObject& out) const {
     out["flipInterval"] = _flipInterval;
     out["tempIconId"] = _tempIconId;
     out["humidityIconId"] = _humIconId;
+
+    auto toHex = [](uint16_t c, char* out, size_t len) {
+        uint8_t r5 = (c >> 11) & 0x1F;
+        uint8_t g6 = (c >> 5) & 0x3F;
+        uint8_t b5 = c & 0x1F;
+        uint8_t r = (r5 << 3) | (r5 >> 2);
+        uint8_t g = (g6 << 2) | (g6 >> 4);
+        uint8_t b = (b5 << 3) | (b5 >> 2);
+        snprintf(out, len, "#%02X%02X%02X", r, g, b);
+    };
+
+    char tempHex[8], humHex[8], valueHex[8];
+    toHex(_tempIconColor, tempHex, sizeof(tempHex));
+    toHex(_humIconColor, humHex, sizeof(humHex));
+    toHex(_valueColor, valueHex, sizeof(valueHex));
+
+    JsonObject colors = out["colors"].to<JsonObject>();
+    colors["temp"] = tempHex;
+    colors["humidity"] = humHex;
+    colors["value"] = valueHex;
 }
