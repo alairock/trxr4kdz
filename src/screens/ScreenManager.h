@@ -7,12 +7,13 @@
 class DisplayManager;
 class ConfigManager;
 class CanvasScreen;
+class WeatherService;
 
 #define MAX_SCREENS 12
 
 class ScreenManager {
 public:
-    void begin(DisplayManager& display);
+    void begin(DisplayManager& display, WeatherService* weather = nullptr);
     void update();
 
     // Screen lifecycle
@@ -56,5 +57,6 @@ private:
     bool _cycling = true;
     unsigned long _lastSwitch = 0;
     DisplayManager* _display = nullptr;
+    WeatherService* _weatherService = nullptr;
     bool _started = false;
 };

@@ -1,4 +1,14 @@
 #include "DisplayManager.h"
+#include <Fonts/TomThumb.h>
+#include <Fonts/Picopixel.h>
+#include <Fonts/Org_01.h>
+
+static const GFXfont* FONTS[] = {
+    NULL,        // 0 = default built-in (5x7)
+    &TomThumb,   // 1 = TomThumb (3x5)
+    &Picopixel,  // 2 = Picopixel (3x5)
+    &Org_01,     // 3 = Org_01 (5x6)
+};
 
 void DisplayManager::begin(uint8_t brightness) {
     FastLED.addLeds<WS2812B, PIN_MATRIX_DATA, GRB>(_leds, NUM_LEDS);
@@ -14,6 +24,34 @@ void DisplayManager::begin(uint8_t brightness) {
     _matrix->setBrightness(brightness);
 
     Serial.printf("[Display] Init %dx%d, brightness %d\n", MATRIX_WIDTH, MATRIX_HEIGHT, brightness);
+}
+
+void DisplayManager::showSmallRainbow(const String& text) {
+    if (!_matrix) return;
+    _matrix->fillScreen(0);
+
+    uint8_t charW = fontCharWidth(1); // TomThumb
+    int16_t textW = text.length() * charW;
+    int16_t startX = (MATRIX_WIDTH - textW) / 2;
+    int16_t ty = (MATRIX_HEIGHT - fontHeight(1)) / 2;
+
+    _matrix->setFont(&TomThumb);
+    uint8_t hueStep = 256 / max((int)text.length(), 1);
+    unsigned long t = millis();
+    uint8_t hueOffset = (t / 10) & 0xFF; // animate over time
+
+    for (unsigned int i = 0; i < text.length(); i++) {
+        uint8_t hue = hueOffset + i * hueStep;
+        CRGB c = CHSV(hue, 255, 255);
+        uint16_t color565 = rgb565(c.r, c.g, c.b);
+        _matrix->setCursor(startX + i * charW, ty + fontHeight(1));
+        _matrix->setTextColor(color565);
+        _matrix->print(text[i]);
+    }
+
+    _matrix->setFont(NULL);
+    _matrix->show();
+    _lastShow = millis();
 }
 
 void DisplayManager::showText(const String& text, uint16_t color) {
@@ -67,6 +105,51 @@ void DisplayManager::drawText(int16_t x, int16_t y, const String& text, uint16_t
     _matrix->setCursor(x, y);
     _matrix->setTextColor(color);
     _matrix->print(text);
+}
+
+void DisplayManager::drawSmallText(int16_t x, int16_t y, const String& text, uint16_t color) {
+    if (!_matrix) return;
+    _matrix->setFont(&TomThumb);
+    _matrix->setCursor(x, y + 5); // TomThumb baseline is at bottom; +5 for 5px tall glyphs
+    _matrix->setTextColor(color);
+    _matrix->print(text);
+    _matrix->setFont(NULL); // reset to default
+}
+
+void DisplayManager::drawFontText(int16_t x, int16_t y, const String& text, uint16_t color, uint8_t fontId) {
+    if (!_matrix) return;
+    if (fontId > 3) fontId = 1;
+    const GFXfont* font = FONTS[fontId];
+    _matrix->setFont(font);
+    if (font) {
+        // Custom fonts use baseline as y origin
+        _matrix->setCursor(x, y + fontHeight(fontId));
+    } else {
+        _matrix->setCursor(x, y);
+    }
+    _matrix->setTextColor(color);
+    _matrix->print(text);
+    _matrix->setFont(NULL);
+}
+
+uint8_t DisplayManager::fontHeight(uint8_t fontId) {
+    switch (fontId) {
+        case 0: return 7;  // default
+        case 1: return 5;  // TomThumb
+        case 2: return 5;  // Picopixel
+        case 3: return 6;  // Org_01
+        default: return 5;
+    }
+}
+
+uint8_t DisplayManager::fontCharWidth(uint8_t fontId) {
+    switch (fontId) {
+        case 0: return 6;  // 5px + 1px spacing
+        case 1: return 4;  // 3px + 1px spacing
+        case 2: return 4;  // 3px + 1px spacing
+        case 3: return 6;  // 5px + 1px spacing
+        default: return 4;
+    }
 }
 
 void DisplayManager::drawBitmap(int16_t x, int16_t y, const uint8_t* bitmap, int16_t w, int16_t h, uint16_t color) {

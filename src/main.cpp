@@ -7,6 +7,9 @@
 #include "WiFiManager.h"
 #include "WebServerManager.h"
 #include "screens/ScreenManager.h"
+#include "ButtonManager.h"
+#include "SettingsMenu.h"
+#include "WeatherService.h"
 
 ConfigManager configManager;
 BuzzerManager buzzerManager;
@@ -14,10 +17,19 @@ DisplayManager displayManager;
 WiFiManager wifiManager;
 WebServerManager webServerManager;
 ScreenManager screenManager;
+ButtonManager buttonManager;
+SettingsMenu settingsMenu;
+WeatherService weatherService;
 
 bool buzzerInitDone = false;
 bool screensStarted = false;
 unsigned long bootTime;
+
+// Boot IP scroll state
+String bootIP;
+bool bootIPScrolling = false;
+int16_t bootIPScrollX = MATRIX_WIDTH;
+unsigned long bootIPLastStep = 0;
 
 void setup() {
     // Silence buzzer ASAP — GPIO 15 floats high during flash/reset
@@ -36,7 +48,7 @@ void setup() {
 
     // Init display and show boot message
     displayManager.begin(configManager.getBrightness());
-    displayManager.showText("BOOT", displayManager.getMatrix()->Color(0, 100, 255));
+    displayManager.showSmallRainbow("BOOT");
 
     // Start WiFi (AP always, STA if configured)
     wifiManager.begin(configManager);
@@ -46,8 +58,17 @@ void setup() {
     tzset();
     configTime(0, 0, "pool.ntp.org", "time.nist.gov");
 
+    // Init weather service (I2C sensor + online fetch)
+    weatherService.begin();
+
+    // Init buttons
+    buttonManager.begin();
+
+    // Init settings menu
+    settingsMenu.begin(displayManager, screenManager);
+
     // Start HTTP server (with screen manager)
-    webServerManager.begin(configManager, wifiManager, displayManager, screenManager);
+    webServerManager.begin(configManager, wifiManager, displayManager, screenManager, &weatherService);
 
     Serial.println("=== Boot complete ===");
 }
@@ -59,27 +80,83 @@ void loop() {
         buzzerManager.beep(1000, 150);
         buzzerInitDone = true;
 
-        // Show IP address briefly
+        // Start scrolling IP address
         if (wifiManager.isSTAConnected()) {
-            displayManager.showText(wifiManager.getSTAIP(),
-                displayManager.getMatrix()->Color(0, 255, 0));
+            bootIP = wifiManager.getSTAIP();
         } else {
-            displayManager.showText(wifiManager.getAPIP(),
-                displayManager.getMatrix()->Color(255, 200, 0));
+            bootIP = wifiManager.getAPIP();
+        }
+        bootIPScrolling = true;
+        bootIPScrollX = MATRIX_WIDTH;
+        bootIPLastStep = millis();
+    }
+
+    // Scroll IP during boot with rainbow colors
+    if (bootIPScrolling) {
+        unsigned long now = millis();
+        if (now - bootIPLastStep >= 50) { // ~20px/sec scroll speed
+            bootIPLastStep = now;
+            displayManager.clear();
+            int16_t ty = (8 - DisplayManager::fontHeight(1)) / 2;
+            uint8_t charW = DisplayManager::fontCharWidth(1);
+            uint8_t hueStep = 256 / max((int)bootIP.length(), 1);
+            uint8_t hueOffset = (now / 10) & 0xFF;
+            int16_t cx = bootIPScrollX;
+            for (unsigned int i = 0; i < bootIP.length(); i++) {
+                CRGB c = CHSV(hueOffset + i * hueStep, 255, 255);
+                uint16_t color = DisplayManager::rgb565(c.r, c.g, c.b);
+                char ch[2] = { bootIP[i], 0 };
+                displayManager.drawFontText(cx, ty, ch, color, 1);
+                cx += (bootIP[i] == '.') ? 2 : charW;
+            }
+            displayManager.show();
+            bootIPScrollX--;
+
+            // Stop when text fully scrolled off left
+            int16_t textW = 0;
+            for (unsigned int i = 0; i < bootIP.length(); i++)
+                textW += (bootIP[i] == '.') ? 2 : charW;
+            if (bootIPScrollX < -textW) {
+                bootIPScrolling = false;
+            }
         }
     }
 
-    // After 4s, initialize and start screen cycling
-    if (!screensStarted && millis() - bootTime >= 4000) {
-        screenManager.begin(displayManager);
+    // Start screens after IP scroll finishes
+    if (!screensStarted && buzzerInitDone && !bootIPScrolling) {
+        screenManager.begin(displayManager, &weatherService);
         screensStarted = true;
     }
 
     buzzerManager.update();
     wifiManager.update();
     webServerManager.update();
+    weatherService.update();
+    buttonManager.update();
 
-    if (screensStarted) {
+    // Read button events
+    ButtonEvent leftEvt = buttonManager.getLeftEvent();
+    ButtonEvent rightEvt = buttonManager.getRightEvent();
+    ButtonEvent middleEvt = buttonManager.getMiddleEvent();
+
+    if (settingsMenu.isActive()) {
+        // Settings menu handles all input
+        settingsMenu.update(leftEvt, rightEvt, middleEvt);
+    } else {
+        // Long press middle enters settings
+        if (middleEvt == ButtonEvent::LONG_PRESS && screensStarted) {
+            settingsMenu.enter();
+        }
+        // Short press left/right navigates screens
+        if (leftEvt == ButtonEvent::SHORT_PRESS && screensStarted) {
+            screenManager.prevScreen();
+        }
+        if (rightEvt == ButtonEvent::SHORT_PRESS && screensStarted) {
+            screenManager.nextScreen();
+        }
+    }
+
+    if (screensStarted && !settingsMenu.isActive()) {
         screenManager.update();
     }
     displayManager.update();

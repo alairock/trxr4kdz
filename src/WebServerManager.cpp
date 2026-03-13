@@ -2,13 +2,35 @@
 #include "screens/CanvasScreen.h"
 #include <ArduinoJson.h>
 
-void WebServerManager::begin(ConfigManager& config, WiFiManager& wifi, DisplayManager& display, ScreenManager& screens) {
+void WebServerManager::begin(ConfigManager& config, WiFiManager& wifi, DisplayManager& display, ScreenManager& screens, WeatherService* weather) {
     _config = &config;
     _wifi = &wifi;
     _display = &display;
     _screens = &screens;
+    _weather = weather;
 
     _server.on("/api/status", HTTP_GET, [this]() { handleStatus(); });
+    _server.on("/api/weather/debug", HTTP_GET, [this]() {
+        if (!_weather) {
+            _server.send(500, "application/json", "{\"error\":\"no weather service\"}");
+            return;
+        }
+        JsonDocument doc;
+        doc["hasData"] = _weather->hasData();
+        doc["online"] = _weather->isOnline();
+        doc["tempF"] = _weather->getTemperatureF();
+        doc["humidity"] = _weather->getHumidity();
+        doc["zipCode"] = _weather->getZipCode();
+        doc["hasZipCode"] = _weather->hasZipCode();
+        doc["hasGeocode"] = _weather->hasGeocode();
+        doc["needsGeocode"] = _weather->needsGeocode();
+        doc["lat"] = _weather->getLat();
+        doc["lon"] = _weather->getLon();
+        doc["lastError"] = _weather->getLastError();
+        String json;
+        serializeJson(doc, json);
+        _server.send(200, "application/json", json);
+    });
     _server.on("/api/config", HTTP_GET, [this]() { handleGetConfig(); });
     _server.on("/api/config", HTTP_POST, [this]() { handlePostConfig(); });
     _server.on("/api/wifi", HTTP_POST, [this]() { handlePostWifi(); });
@@ -156,10 +178,10 @@ void WebServerManager::handlePostWifi() {
 void WebServerManager::handleUpdate() {
     if (Update.hasError()) {
         _server.send(500, "application/json", "{\"error\":\"update failed\"}");
-        _display->showText("FAIL", _display->getMatrix()->Color(255, 0, 0));
+        _display->showSmallRainbow("FAIL");
     } else {
         _server.send(200, "application/json", "{\"status\":\"ok, restarting\"}");
-        _display->showText("OK!", _display->getMatrix()->Color(0, 255, 0));
+        _display->showSmallRainbow("trxr4kdz");
         delay(1000);
         ESP.restart();
     }
@@ -170,7 +192,7 @@ void WebServerManager::handleUpdateUpload() {
 
     if (upload.status == UPLOAD_FILE_START) {
         Serial.printf("[OTA] Begin: %s\n", upload.filename.c_str());
-        _display->showText("OTA..", _display->getMatrix()->Color(255, 165, 0));
+        _display->showSmallRainbow("UPDATE");
         if (!Update.begin(UPDATE_SIZE_UNKNOWN)) {
             Update.printError(Serial);
         }
@@ -234,6 +256,7 @@ void WebServerManager::handlePostScreen() {
     if (strcmp(typeStr, "clock") == 0) type = ScreenType::CLOCK;
     else if (strcmp(typeStr, "text_ticker") == 0) type = ScreenType::TEXT_TICKER;
     else if (strcmp(typeStr, "canvas") == 0) type = ScreenType::CANVAS;
+    else if (strcmp(typeStr, "weather") == 0) type = ScreenType::WEATHER;
     else {
         _server.send(400, "application/json", "{\"error\":\"invalid type\"}");
         return;

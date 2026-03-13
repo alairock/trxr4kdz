@@ -14,6 +14,7 @@ class DisplayManager {
 public:
     void begin(uint8_t brightness);
     void showText(const String& text, uint16_t color = 0xFFFF);
+    void showSmallRainbow(const String& text);
     void update();
     FastLED_NeoMatrix* getMatrix() { return _matrix; }
 
@@ -24,6 +25,12 @@ public:
     void drawRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color);
     void fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color);
     void drawText(int16_t x, int16_t y, const String& text, uint16_t color);
+    void drawSmallText(int16_t x, int16_t y, const String& text, uint16_t color);
+    void drawFontText(int16_t x, int16_t y, const String& text, uint16_t color, uint8_t fontId);
+
+    // Font IDs: 0=default(5x7), 1=TomThumb(3x5), 2=Picopixel(3x5), 3=Org_01(5x6)
+    static uint8_t fontHeight(uint8_t fontId);
+    static uint8_t fontCharWidth(uint8_t fontId);
     void drawBitmap(int16_t x, int16_t y, const uint8_t* bitmap, int16_t w, int16_t h, uint16_t color);
     void drawProgressBar(int16_t x, int16_t y, int16_t w, int16_t h, uint8_t pct, uint16_t fgColor, uint16_t bgColor);
     void show();

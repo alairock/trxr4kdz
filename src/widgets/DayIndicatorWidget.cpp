@@ -12,9 +12,12 @@ void DayIndicatorWidget::draw(DisplayManager& display, unsigned long now) {
     // Convert to Mon=0..Sun=6
     int adjusted = (dayOfWeek + 6) % 7;
 
+    // 2 pixels per day, 1 pixel gap between days = 20px total
     for (int i = 0; i < 7; i++) {
         uint16_t c = (i == adjusted) ? activeColor : inactiveColor;
-        display.drawPixel(x + i, y, c);
+        int16_t px = x + i * 3; // 2px dot + 1px gap = stride of 3
+        display.drawPixel(px, y, c);
+        display.drawPixel(px + 1, y, c);
     }
 }
 

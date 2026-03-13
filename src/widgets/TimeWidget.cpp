@@ -26,7 +26,19 @@ void TimeWidget::draw(DisplayManager& display, unsigned long now) {
         }
     }
 
-    display.drawText(x, y, buf, color);
+    int16_t drawX = x;
+    if (autoCenter) {
+        uint8_t charW = DisplayManager::fontCharWidth(fontId);
+        int16_t textLen = strlen(buf);
+        int16_t colonCount = 0;
+        for (int i = 0; buf[i]; i++) {
+            if (buf[i] == ':' || buf[i] == ' ') colonCount++;
+        }
+        // Narrow chars (colon/space) are roughly half width
+        int16_t textWidth = (textLen - colonCount) * charW + colonCount * (charW / 2);
+        drawX = x + (displayWidth - textWidth) / 2;
+    }
+    display.drawFontText(drawX, y, buf, color, fontId);
 }
 
 void TimeWidget::configure(const JsonObjectConst& cfg) {

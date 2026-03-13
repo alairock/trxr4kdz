@@ -12,23 +12,24 @@ void ClockScreen::layoutWidgets() {
     int16_t timeY = 0;
     int16_t displayWidth = MATRIX_WIDTH;
 
-    if (_showIcon) {
+    if (_showCalendar) {
+        _calendar.x = 0;
+        _calendar.y = 0;
+        textStartX = 9; // 8px calendar + 1px gap
+        displayWidth -= 9;
+    } else if (_showIcon) {
         _icon.x = 0;
         _icon.y = 0;
         textStartX = 9; // 8px icon + 1px gap
         displayWidth -= 9;
     }
 
-    // Center time on the available width
-    // Estimate pixel width: each char ~6px, colon ~4px
-    // "H:MM" ~22px, "HH:MM" ~28px, "H MM" same
-    int16_t estTimeWidth = _use24h ? 28 : 25; // rough estimate
-    int16_t timeX = textStartX + (displayWidth - estTimeWidth) / 2;
-    if (timeX < textStartX) timeX = textStartX;
-
-    _time.x = timeX;
+    _time.x = textStartX;
     _time.y = timeY;
     _time.use24h = _use24h;
+    _time.fontId = _fontId;
+    _time.autoCenter = true;
+    _time.displayWidth = displayWidth;
 
     if (_showDate) {
         // Date only works well with icon (icon left, time center-ish, date right)
@@ -38,8 +39,8 @@ void ClockScreen::layoutWidgets() {
     }
 
     if (_showDayIndicator) {
-        // Center 7 dots on available width
-        int16_t dotsX = textStartX + (displayWidth - 7) / 2;
+        // 7 days × 2px + 6 gaps × 1px = 20px total
+        int16_t dotsX = textStartX + (displayWidth - 20) / 2;
         _dayIndicator.x = dotsX;
         _dayIndicator.y = 7; // bottom row
     }
@@ -55,7 +56,8 @@ void ClockScreen::layoutWidgets() {
 bool ClockScreen::update(DisplayManager& display, unsigned long now) {
     display.clear();
 
-    if (_showIcon) _icon.draw(display, now);
+    if (_showCalendar) _calendar.draw(display, now);
+    else if (_showIcon) _icon.draw(display, now);
     if (_showTime) _time.draw(display, now);
     if (_showDate && !_showTime) _date.draw(display, now); // only if time is off
     if (_showDayIndicator) _dayIndicator.draw(display, now);
@@ -75,6 +77,7 @@ void ClockScreen::configure(const JsonObjectConst& cfg) {
         _showIcon = false;
         _showProgress = false;
         _showDayIndicator = false;
+        _showCalendar = false;
 
         JsonArrayConst comps = cfg["complications"];
         for (JsonVariantConst v : comps) {
@@ -85,6 +88,7 @@ void ClockScreen::configure(const JsonObjectConst& cfg) {
             else if (strcmp(c, "icon") == 0) _showIcon = true;
             else if (strcmp(c, "progress_bar") == 0) _showProgress = true;
             else if (strcmp(c, "day_indicator") == 0) _showDayIndicator = true;
+            else if (strcmp(c, "calendar") == 0) _showCalendar = true;
         }
     }
 
@@ -97,9 +101,14 @@ void ClockScreen::configure(const JsonObjectConst& cfg) {
             _date.color = DisplayManager::hexToColor(colors["date"].as<String>());
         if (colors["icon"].is<const char*>())
             _icon.color = DisplayManager::hexToColor(colors["icon"].as<String>());
+        if (colors["calendar"].is<const char*>())
+            _calendar.textColor = DisplayManager::hexToColor(colors["calendar"].as<String>());
     }
 
+    if (cfg["font"].is<int>()) _fontId = cfg["font"].as<uint8_t>();
+
     _time.use24h = _use24h;
+    _time.fontId = _fontId;
     applyTimezone();
     layoutWidgets();
 }
@@ -107,6 +116,7 @@ void ClockScreen::configure(const JsonObjectConst& cfg) {
 void ClockScreen::serialize(JsonObject& out) const {
     out["use24h"] = _use24h;
     out["timezone"] = _timezone;
+    out["font"] = _fontId;
 
     JsonArray comps = out["complications"].to<JsonArray>();
     if (_showTime) comps.add("time");
@@ -114,6 +124,7 @@ void ClockScreen::serialize(JsonObject& out) const {
     if (_showIcon) comps.add("icon");
     if (_showProgress) comps.add("progress_bar");
     if (_showDayIndicator) comps.add("day_indicator");
+    if (_showCalendar) comps.add("calendar");
 
     JsonObject colors = out["colors"].to<JsonObject>();
     (void)colors; // colors are applied via configure(), preserved in memory

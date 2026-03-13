@@ -17,9 +17,15 @@ public:
     void pushDrawCommands(const JsonObjectConst& cmd);
     void clearFramebuffer();
 
+    // Persistence
+    bool saveFramebuffer();
+    bool loadFramebuffer();
+
 private:
+    String framebufferPath() const;
+
     uint16_t _framebuffer[32 * 8]; // 512 bytes
-    uint32_t _lifetime = 60;        // auto-disable after N seconds with no push (0 = indefinite)
+    uint32_t _lifetime = 0;         // 0 = indefinite (no auto-disable)
     unsigned long _lastPush = 0;
     bool _dirty = true;
 };

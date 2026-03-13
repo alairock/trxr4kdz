@@ -7,12 +7,13 @@
 #include "WiFiManager.h"
 #include "DisplayManager.h"
 #include "screens/ScreenManager.h"
+#include "WeatherService.h"
 
 #define FIRMWARE_VERSION "0.1.0"
 
 class WebServerManager {
 public:
-    void begin(ConfigManager& config, WiFiManager& wifi, DisplayManager& display, ScreenManager& screens);
+    void begin(ConfigManager& config, WiFiManager& wifi, DisplayManager& display, ScreenManager& screens, WeatherService* weather = nullptr);
     void update();
 
 private:
@@ -45,4 +46,5 @@ private:
     WiFiManager* _wifi = nullptr;
     DisplayManager* _display = nullptr;
     ScreenManager* _screens = nullptr;
+    WeatherService* _weather = nullptr;
 };

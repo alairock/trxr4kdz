@@ -3,10 +3,13 @@
 #include "ClockScreen.h"
 #include "TextTickerScreen.h"
 #include "CanvasScreen.h"
+#include "WeatherScreen.h"
+#include "../WeatherService.h"
 #include <LittleFS.h>
 
-void ScreenManager::begin(DisplayManager& display) {
+void ScreenManager::begin(DisplayManager& display, WeatherService* weather) {
     _display = &display;
+    _weatherService = weather;
 
     if (!load()) {
         Serial.println("[Screens] No config found, creating default clock");
@@ -203,6 +206,11 @@ Screen* ScreenManager::createScreenByType(ScreenType type) {
         case ScreenType::CLOCK: return new ClockScreen();
         case ScreenType::TEXT_TICKER: return new TextTickerScreen();
         case ScreenType::CANVAS: return new CanvasScreen();
+        case ScreenType::WEATHER: {
+            WeatherScreen* ws = new WeatherScreen();
+            ws->setWeatherService(_weatherService);
+            return ws;
+        }
         default: return nullptr;
     }
 }
@@ -211,6 +219,7 @@ ScreenType ScreenManager::typeFromString(const char* name) {
     if (strcmp(name, "clock") == 0) return ScreenType::CLOCK;
     if (strcmp(name, "text_ticker") == 0) return ScreenType::TEXT_TICKER;
     if (strcmp(name, "canvas") == 0) return ScreenType::CANVAS;
+    if (strcmp(name, "weather") == 0) return ScreenType::WEATHER;
     return ScreenType::CLOCK; // default
 }
 
