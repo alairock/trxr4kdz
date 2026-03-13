@@ -1,15 +1,21 @@
 #include "WiFiManager.h"
 
 void WiFiManager::begin(ConfigManager& config) {
+    if (config.hasWifiCredentials()) {
+        WiFi.mode(WIFI_AP_STA);
+    } else {
+        WiFi.mode(WIFI_AP);
+    }
+
     startAP(config.getAPPassword());
 
     if (config.hasWifiCredentials()) {
-        WiFi.mode(WIFI_AP_STA);
         connectSTA(config.getWifiSSID(), config.getWifiPassword());
     }
 
     WiFi.setHostname(config.getHostname().c_str());
-    Serial.printf("[WiFi] AP IP: %s\n", getAPIP().c_str());
+    Serial.printf("[WiFi] AP: %s  Pass: %s  IP: %s\n",
+        WiFi.softAPSSID().c_str(), config.getAPPassword().c_str(), getAPIP().c_str());
 }
 
 void WiFiManager::startAP(const String& apPassword) {
@@ -18,7 +24,6 @@ void WiFiManager::startAP(const String& apPassword) {
     char apName[20];
     snprintf(apName, sizeof(apName), "Ulanzi-%02X%02X", mac[4], mac[5]);
 
-    WiFi.mode(WIFI_AP);
     WiFi.softAP(apName, apPassword.c_str());
     Serial.printf("[WiFi] AP started: %s\n", apName);
 }

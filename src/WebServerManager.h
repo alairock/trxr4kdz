@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 #include <WebServer.h>
+#include <DNSServer.h>
 #include <Update.h>
 #include "ConfigManager.h"
 #include "WiFiManager.h"
@@ -37,11 +38,14 @@ private:
     void handleScreensCycling();
     void handleCanvasPush();
     void handleCanvasDraw();
+    void handleCaptivePortal();
+    void handleWifiSave();
 
     // Route matching helper
     bool matchRoute(const String& uri, const String& pattern, String& param);
 
     WebServer _server{80};
+    DNSServer _dns;
     ConfigManager* _config = nullptr;
     WiFiManager* _wifi = nullptr;
     DisplayManager* _display = nullptr;

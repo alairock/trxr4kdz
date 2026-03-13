@@ -1,6 +1,46 @@
 #include "WebServerManager.h"
 #include "screens/CanvasScreen.h"
 #include <ArduinoJson.h>
+#include <WiFi.h>
+
+static const char CAPTIVE_HTML_HEAD[] PROGMEM = R"rawliteral(<!DOCTYPE html><html><head>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>trxr4kdz WiFi Setup</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,sans-serif;background:#111;color:#eee;display:flex;justify-content:center;align-items:center;min-height:100vh}
+.card{background:#222;border-radius:12px;padding:24px;width:90%;max-width:360px;box-shadow:0 4px 24px rgba(0,0,0,.5)}
+h1{font-size:1.2em;margin-bottom:16px;text-align:center;background:linear-gradient(90deg,#f66,#ff0,#0f0,#0ff,#66f,#f6f);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.blurb{font-size:.85em;color:#999;text-align:center;margin-bottom:16px;line-height:1.4}
+label{display:block;font-size:.85em;margin-bottom:4px;color:#aaa}
+input{width:100%;padding:10px;border:1px solid #444;border-radius:8px;background:#1a1a1a;color:#eee;font-size:1em;margin-bottom:12px}
+input:focus{outline:none;border-color:#0af}
+button{width:100%;padding:12px;border:none;border-radius:8px;background:linear-gradient(135deg,#0af,#06f);color:#fff;font-size:1em;font-weight:600;cursor:pointer}
+button:active{transform:scale(.98)}
+.msg{text-align:center;margin-top:12px;font-size:.85em;color:#0f0;display:none}
+</style></head><body>
+<div class="card">
+<h1>trxr4kdz</h1>
+<p class="blurb">Enter your WiFi details to get started. Your credentials are stored locally on the device and never shared.</p>
+<form id="f" onsubmit="return save()">
+<label>WiFi Network</label><input id="s" name="ssid" placeholder="SSID" required value=")rawliteral";
+
+// Mid section: close the SSID value attr, then the button text gets injected
+static const char CAPTIVE_HTML_MID[] PROGMEM = R"rawliteral(">
+<label>Password</label><input id="p" name="password" type="password" placeholder="Password">
+<button type="submit">)rawliteral";
+
+static const char CAPTIVE_HTML_TAIL[] PROGMEM = R"rawliteral(</button>
+</form>
+<div class="msg" id="m">Connecting... Device will restart.</div>
+</div>
+<script>
+function save(){
+fetch('/api/wifi',{method:'POST',headers:{'Content-Type':'application/json'},
+body:JSON.stringify({ssid:document.getElementById('s').value,password:document.getElementById('p').value})})
+.then(()=>{document.getElementById('m').style.display='block';document.getElementById('f').style.display='none'});
+return false;}
+</script></body></html>)rawliteral";
 
 void WebServerManager::begin(ConfigManager& config, WiFiManager& wifi, DisplayManager& display, ScreenManager& screens, WeatherService* weather) {
     _config = &config;
@@ -8,6 +48,13 @@ void WebServerManager::begin(ConfigManager& config, WiFiManager& wifi, DisplayMa
     _display = &display;
     _screens = &screens;
     _weather = weather;
+
+    // Captive portal - serve WiFi setup page
+    _server.on("/", HTTP_GET, [this]() { handleCaptivePortal(); });
+    _server.on("/generate_204", HTTP_GET, [this]() { handleCaptivePortal(); });  // Android
+    _server.on("/fwlink", HTTP_GET, [this]() { handleCaptivePortal(); });        // Windows
+    _server.on("/hotspot-detect.html", HTTP_GET, [this]() { handleCaptivePortal(); }); // Apple
+    _server.on("/connecttest.txt", HTTP_GET, [this]() { handleCaptivePortal(); }); // Windows 11
 
     _server.on("/api/status", HTTP_GET, [this]() { handleStatus(); });
     _server.on("/api/weather/debug", HTTP_GET, [this]() {
@@ -65,17 +112,43 @@ void WebServerManager::begin(ConfigManager& config, WiFiManager& wifi, DisplayMa
             handleCanvasDraw();
         } else if (_server.method() == HTTP_POST && uri.startsWith("/api/canvas/")) {
             handleCanvasPush();
-        } else {
+        } else if (uri.startsWith("/api/")) {
             _server.send(404, "application/json", "{\"error\":\"not found\"}");
+        } else {
+            // Non-API requests get captive portal
+            handleCaptivePortal();
         }
     });
 
     _server.begin();
+
+    // Start DNS server for captive portal — redirect all domains to AP IP
+    _dns.start(53, "*", WiFi.softAPIP());
+
     Serial.println("[Web] Server started on port 80");
 }
 
 void WebServerManager::update() {
+    _dns.processNextRequest();
     _server.handleClient();
+}
+
+void WebServerManager::handleCaptivePortal() {
+    String ssid = _config->getWifiSSID();
+    ssid.replace("&", "&amp;");
+    ssid.replace("\"", "&quot;");
+    ssid.replace("<", "&lt;");
+
+    const char* btnText = ssid.length() > 0 ? "Update" : "Save";
+
+    String page;
+    page.reserve(2048);
+    page += FPSTR(CAPTIVE_HTML_HEAD);
+    page += ssid;
+    page += FPSTR(CAPTIVE_HTML_MID);
+    page += btnText;
+    page += FPSTR(CAPTIVE_HTML_TAIL);
+    _server.send(200, "text/html", page);
 }
 
 bool WebServerManager::matchRoute(const String& uri, const String& pattern, String& param) {
@@ -169,10 +242,10 @@ void WebServerManager::handlePostWifi() {
     _config->setWifiPassword(password);
     _config->save();
 
-    WiFi.mode(WIFI_AP_STA);
-    _wifi->connectSTA(ssid, password);
-
     _server.send(200, "application/json", "{\"status\":\"connecting\"}");
+    _display->showSmallRainbow("WiFi...");
+    delay(1000);
+    ESP.restart();
 }
 
 void WebServerManager::handleUpdate() {
