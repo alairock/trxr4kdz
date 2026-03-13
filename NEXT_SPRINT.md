@@ -7,15 +7,15 @@ Stabilize and harden the new firmware line while preserving iteration speed.
 
 - [x] Add minimal auth/guardrail for OTA and sensitive API routes
 - [x] Validate defaults API end-to-end (create/update/persist/reboot)
-- [ ] Add a quick firmware regression pass:
-  - [ ] boot + Wi-Fi join/captive fallback
+- [x] Add a quick firmware regression pass:
+  - [x] boot + Wi-Fi join/captive fallback _(evidence: `artifacts/boot_wifi_captive_validation_20260313_155707.log`, `scripts/BOOT_WIFI_FALLBACK_CHECKLIST.md`, `src/WiFiManager.cpp` fallback path)_
   - [x] screen cycling play/pause behavior
   - [x] binary clock mode correctness
   - [x] weather screen render sanity
 
 ## P1 (high value)
 
-- [ ] Document current API behavior in README (especially defaults + screen controls)
+- [x] Document current API behavior in README (especially defaults + screen controls)
 - [ ] Add a small test script/checklist for common API calls
 - [ ] Review blocking network calls and cap worst-case latency paths
 

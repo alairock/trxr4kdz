@@ -1,0 +1,207 @@
+=== Boot + Wi-Fi join/captive validation ===
+Base URL: http://192.168.0.48
+
+>>> curl -sS -X GET  'http://192.168.0.48/api/status' 
+{"version":"0.1.0","hostname":"ulanzi","ap_ip":"192.168.4.1","sta_ip":"192.168.0.48","sta_connected":true,"rssi":-50,"free_heap":222428,"uptime_s":515}
+HTTP 200
+ASSERT PASS: pre-boot status shows STA joined (192.168.0.48) + AP active (192.168.4.1), uptime=515s
+
+>>> curl -sS -X GET  'http://192.168.0.48/' 
+<!DOCTYPE html><html><head>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>trxr4kdz WiFi Setup</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,sans-serif;background:#111;color:#eee;display:flex;justify-content:center;align-items:center;min-height:100vh}
+.card{background:#222;border-radius:12px;padding:24px;width:90%;max-width:360px;box-shadow:0 4px 24px rgba(0,0,0,.5)}
+h1{font-size:1.2em;margin-bottom:16px;text-align:center;background:linear-gradient(90deg,#f66,#ff0,#0f0,#0ff,#66f,#f6f);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.blurb{font-size:.85em;color:#999;text-align:center;margin-bottom:16px;line-height:1.4}
+label{display:block;font-size:.85em;margin-bottom:4px;color:#aaa}
+input{width:100%;padding:10px;border:1px solid #444;border-radius:8px;background:#1a1a1a;color:#eee;font-size:1em;margin-bottom:12px}
+input:focus{outline:none;border-color:#0af}
+button{width:100%;padding:12px;border:none;border-radius:8px;background:linear-gradient(135deg,#0af,#06f);color:#fff;font-size:1em;font-weight:600;cursor:pointer}
+button:active{transform:scale(.98)}
+.msg{text-align:center;margin-top:12px;font-size:.85em;color:#0f0;display:none}
+</style></head><body>
+<div class="card">
+<h1>trxr4kdz</h1>
+<p class="blurb">Enter your WiFi details to get started. Your credentials are stored locally on the device and never shared.</p>
+<form id="f" onsubmit="return save()">
+<label>WiFi Network</label><input id="s" name="ssid" placeholder="SSID" required value="Rivendell">
+<label>Password</label><input id="p" name="password" type="password" placeholder="Password">
+<button type="submit">Update</button>
+</form>
+<div class="msg" id="m">Connecting... Device will restart.</div>
+</div>
+<script>
+function save(){
+fetch('/api/wifi',{method:'POST',headers:{'Content-Type':'application/json'},
+body:JSON.stringify({ssid:document.getElementById('s').value,password:document.getElementById('p').value})})
+.then(()=>{document.getElementById('m').style.display='block';document.getElementById('f').style.display='none'});
+return false;}
+</script></body></html>
+HTTP 200
+ASSERT PASS: captive endpoint / returned setup page
+
+>>> curl -sS -X GET  'http://192.168.0.48/generate_204' 
+<!DOCTYPE html><html><head>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>trxr4kdz WiFi Setup</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,sans-serif;background:#111;color:#eee;display:flex;justify-content:center;align-items:center;min-height:100vh}
+.card{background:#222;border-radius:12px;padding:24px;width:90%;max-width:360px;box-shadow:0 4px 24px rgba(0,0,0,.5)}
+h1{font-size:1.2em;margin-bottom:16px;text-align:center;background:linear-gradient(90deg,#f66,#ff0,#0f0,#0ff,#66f,#f6f);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.blurb{font-size:.85em;color:#999;text-align:center;margin-bottom:16px;line-height:1.4}
+label{display:block;font-size:.85em;margin-bottom:4px;color:#aaa}
+input{width:100%;padding:10px;border:1px solid #444;border-radius:8px;background:#1a1a1a;color:#eee;font-size:1em;margin-bottom:12px}
+input:focus{outline:none;border-color:#0af}
+button{width:100%;padding:12px;border:none;border-radius:8px;background:linear-gradient(135deg,#0af,#06f);color:#fff;font-size:1em;font-weight:600;cursor:pointer}
+button:active{transform:scale(.98)}
+.msg{text-align:center;margin-top:12px;font-size:.85em;color:#0f0;display:none}
+</style></head><body>
+<div class="card">
+<h1>trxr4kdz</h1>
+<p class="blurb">Enter your WiFi details to get started. Your credentials are stored locally on the device and never shared.</p>
+<form id="f" onsubmit="return save()">
+<label>WiFi Network</label><input id="s" name="ssid" placeholder="SSID" required value="Rivendell">
+<label>Password</label><input id="p" name="password" type="password" placeholder="Password">
+<button type="submit">Update</button>
+</form>
+<div class="msg" id="m">Connecting... Device will restart.</div>
+</div>
+<script>
+function save(){
+fetch('/api/wifi',{method:'POST',headers:{'Content-Type':'application/json'},
+body:JSON.stringify({ssid:document.getElementById('s').value,password:document.getElementById('p').value})})
+.then(()=>{document.getElementById('m').style.display='block';document.getElementById('f').style.display='none'});
+return false;}
+</script></body></html>
+HTTP 200
+ASSERT PASS: captive endpoint /generate_204 returned setup page
+
+>>> curl -sS -X GET  'http://192.168.0.48/hotspot-detect.html' 
+<!DOCTYPE html><html><head>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>trxr4kdz WiFi Setup</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,sans-serif;background:#111;color:#eee;display:flex;justify-content:center;align-items:center;min-height:100vh}
+.card{background:#222;border-radius:12px;padding:24px;width:90%;max-width:360px;box-shadow:0 4px 24px rgba(0,0,0,.5)}
+h1{font-size:1.2em;margin-bottom:16px;text-align:center;background:linear-gradient(90deg,#f66,#ff0,#0f0,#0ff,#66f,#f6f);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.blurb{font-size:.85em;color:#999;text-align:center;margin-bottom:16px;line-height:1.4}
+label{display:block;font-size:.85em;margin-bottom:4px;color:#aaa}
+input{width:100%;padding:10px;border:1px solid #444;border-radius:8px;background:#1a1a1a;color:#eee;font-size:1em;margin-bottom:12px}
+input:focus{outline:none;border-color:#0af}
+button{width:100%;padding:12px;border:none;border-radius:8px;background:linear-gradient(135deg,#0af,#06f);color:#fff;font-size:1em;font-weight:600;cursor:pointer}
+button:active{transform:scale(.98)}
+.msg{text-align:center;margin-top:12px;font-size:.85em;color:#0f0;display:none}
+</style></head><body>
+<div class="card">
+<h1>trxr4kdz</h1>
+<p class="blurb">Enter your WiFi details to get started. Your credentials are stored locally on the device and never shared.</p>
+<form id="f" onsubmit="return save()">
+<label>WiFi Network</label><input id="s" name="ssid" placeholder="SSID" required value="Rivendell">
+<label>Password</label><input id="p" name="password" type="password" placeholder="Password">
+<button type="submit">Update</button>
+</form>
+<div class="msg" id="m">Connecting... Device will restart.</div>
+</div>
+<script>
+function save(){
+fetch('/api/wifi',{method:'POST',headers:{'Content-Type':'application/json'},
+body:JSON.stringify({ssid:document.getElementById('s').value,password:document.getElementById('p').value})})
+.then(()=>{document.getElementById('m').style.display='block';document.getElementById('f').style.display='none'});
+return false;}
+</script></body></html>
+HTTP 200
+ASSERT PASS: captive endpoint /hotspot-detect.html returned setup page
+
+>>> curl -sS -X GET  'http://192.168.0.48/fwlink' 
+<!DOCTYPE html><html><head>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>trxr4kdz WiFi Setup</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,sans-serif;background:#111;color:#eee;display:flex;justify-content:center;align-items:center;min-height:100vh}
+.card{background:#222;border-radius:12px;padding:24px;width:90%;max-width:360px;box-shadow:0 4px 24px rgba(0,0,0,.5)}
+h1{font-size:1.2em;margin-bottom:16px;text-align:center;background:linear-gradient(90deg,#f66,#ff0,#0f0,#0ff,#66f,#f6f);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.blurb{font-size:.85em;color:#999;text-align:center;margin-bottom:16px;line-height:1.4}
+label{display:block;font-size:.85em;margin-bottom:4px;color:#aaa}
+input{width:100%;padding:10px;border:1px solid #444;border-radius:8px;background:#1a1a1a;color:#eee;font-size:1em;margin-bottom:12px}
+input:focus{outline:none;border-color:#0af}
+button{width:100%;padding:12px;border:none;border-radius:8px;background:linear-gradient(135deg,#0af,#06f);color:#fff;font-size:1em;font-weight:600;cursor:pointer}
+button:active{transform:scale(.98)}
+.msg{text-align:center;margin-top:12px;font-size:.85em;color:#0f0;display:none}
+</style></head><body>
+<div class="card">
+<h1>trxr4kdz</h1>
+<p class="blurb">Enter your WiFi details to get started. Your credentials are stored locally on the device and never shared.</p>
+<form id="f" onsubmit="return save()">
+<label>WiFi Network</label><input id="s" name="ssid" placeholder="SSID" required value="Rivendell">
+<label>Password</label><input id="p" name="password" type="password" placeholder="Password">
+<button type="submit">Update</button>
+</form>
+<div class="msg" id="m">Connecting... Device will restart.</div>
+</div>
+<script>
+function save(){
+fetch('/api/wifi',{method:'POST',headers:{'Content-Type':'application/json'},
+body:JSON.stringify({ssid:document.getElementById('s').value,password:document.getElementById('p').value})})
+.then(()=>{document.getElementById('m').style.display='block';document.getElementById('f').style.display='none'});
+return false;}
+</script></body></html>
+HTTP 200
+ASSERT PASS: captive endpoint /fwlink returned setup page
+
+>>> curl -sS -X GET  'http://192.168.0.48/connecttest.txt' 
+<!DOCTYPE html><html><head>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>trxr4kdz WiFi Setup</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,sans-serif;background:#111;color:#eee;display:flex;justify-content:center;align-items:center;min-height:100vh}
+.card{background:#222;border-radius:12px;padding:24px;width:90%;max-width:360px;box-shadow:0 4px 24px rgba(0,0,0,.5)}
+h1{font-size:1.2em;margin-bottom:16px;text-align:center;background:linear-gradient(90deg,#f66,#ff0,#0f0,#0ff,#66f,#f6f);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.blurb{font-size:.85em;color:#999;text-align:center;margin-bottom:16px;line-height:1.4}
+label{display:block;font-size:.85em;margin-bottom:4px;color:#aaa}
+input{width:100%;padding:10px;border:1px solid #444;border-radius:8px;background:#1a1a1a;color:#eee;font-size:1em;margin-bottom:12px}
+input:focus{outline:none;border-color:#0af}
+button{width:100%;padding:12px;border:none;border-radius:8px;background:linear-gradient(135deg,#0af,#06f);color:#fff;font-size:1em;font-weight:600;cursor:pointer}
+button:active{transform:scale(.98)}
+.msg{text-align:center;margin-top:12px;font-size:.85em;color:#0f0;display:none}
+</style></head><body>
+<div class="card">
+<h1>trxr4kdz</h1>
+<p class="blurb">Enter your WiFi details to get started. Your credentials are stored locally on the device and never shared.</p>
+<form id="f" onsubmit="return save()">
+<label>WiFi Network</label><input id="s" name="ssid" placeholder="SSID" required value="Rivendell">
+<label>Password</label><input id="p" name="password" type="password" placeholder="Password">
+<button type="submit">Update</button>
+</form>
+<div class="msg" id="m">Connecting... Device will restart.</div>
+</div>
+<script>
+function save(){
+fetch('/api/wifi',{method:'POST',headers:{'Content-Type':'application/json'},
+body:JSON.stringify({ssid:document.getElementById('s').value,password:document.getElementById('p').value})})
+.then(()=>{document.getElementById('m').style.display='block';document.getElementById('f').style.display='none'});
+return false;}
+</script></body></html>
+HTTP 200
+ASSERT PASS: captive endpoint /connecttest.txt returned setup page
+
+>>> curl -sS -X POST  'http://192.168.0.48/api/update' -F firmware=@.pio/build/ulanzi/firmware.bin
+{"status":"ok, restarting"}
+HTTP 200
+
+>>> waiting for device to return after reboot
+Device reachable after 2s
+
+>>> curl -sS -X GET  'http://192.168.0.48/api/status' 
+{"version":"0.1.0","hostname":"ulanzi","ap_ip":"192.168.4.1","sta_ip":"192.168.0.48","sta_connected":true,"rssi":-53,"free_heap":222144,"uptime_s":60}
+HTTP 200
+ASSERT PASS: post-boot status confirms Wi-Fi rejoin + AP captive availability (uptime=60s)
+SUCCESS: boot Wi-Fi join + captive portal behavior validated on reachable boot path
+NOTE: AP-only fallback on bad credentials remains a manual/physical-network check (see scripts/BOOT_WIFI_FALLBACK_CHECKLIST.md).
+Evidence log: ./artifacts/boot_wifi_captive_validation_20260313_155707.log
