@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
+#include <Preferences.h>
 
 class ConfigManager {
 public:
@@ -23,9 +24,13 @@ public:
     bool hasWifiCredentials() const { return _wifiSSID.length() > 0 && _wifiPassword.length() > 0; }
 
 private:
+    void saveWifiToNVS();
+    void loadWifiFromNVS();
+
     String _wifiSSID;
     String _wifiPassword;
     uint8_t _brightness = 40;
     String _hostname = "ulanzi";
     String _apPassword = "12345678";
+    Preferences _prefs;
 };

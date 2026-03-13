@@ -17,6 +17,7 @@ private:
     void startAP(const String& apPassword);
     String _ssid;
     String _password;
+    String _apPassword;
     unsigned long _lastReconnect = 0;
     static const unsigned long RECONNECT_INTERVAL = 30000;
 };

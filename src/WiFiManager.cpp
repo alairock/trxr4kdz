@@ -1,21 +1,42 @@
 #include "WiFiManager.h"
 
 void WiFiManager::begin(ConfigManager& config) {
-    if (config.hasWifiCredentials()) {
-        WiFi.mode(WIFI_AP_STA);
-    } else {
-        WiFi.mode(WIFI_AP);
-    }
-
-    startAP(config.getAPPassword());
+    _apPassword = config.getAPPassword();
 
     if (config.hasWifiCredentials()) {
+        // Try STA first
+        WiFi.mode(WIFI_STA);
+        WiFi.setHostname(config.getHostname().c_str());
         connectSTA(config.getWifiSSID(), config.getWifiPassword());
+
+        // Wait up to 10s for connection
+        Serial.print("[WiFi] Waiting for connection");
+        unsigned long start = millis();
+        while (WiFi.status() != WL_CONNECTED && millis() - start < 10000) {
+            delay(250);
+            Serial.print(".");
+        }
+        Serial.println();
+
+        if (WiFi.status() == WL_CONNECTED) {
+            Serial.printf("[WiFi] Connected! IP: %s\n", getSTAIP().c_str());
+            // Also start AP so user can still access captive portal
+            WiFi.mode(WIFI_AP_STA);
+            startAP(_apPassword);
+        } else {
+            Serial.println("[WiFi] STA failed, falling back to AP only");
+            WiFi.mode(WIFI_AP);
+            startAP(_apPassword);
+        }
+    } else {
+        // No credentials, AP only
+        WiFi.mode(WIFI_AP);
+        WiFi.setHostname(config.getHostname().c_str());
+        startAP(_apPassword);
     }
 
-    WiFi.setHostname(config.getHostname().c_str());
     Serial.printf("[WiFi] AP: %s  Pass: %s  IP: %s\n",
-        WiFi.softAPSSID().c_str(), config.getAPPassword().c_str(), getAPIP().c_str());
+        WiFi.softAPSSID().c_str(), _apPassword.c_str(), getAPIP().c_str());
 }
 
 void WiFiManager::startAP(const String& apPassword) {
