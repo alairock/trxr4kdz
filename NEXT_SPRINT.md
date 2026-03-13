@@ -6,7 +6,7 @@ Stabilize and harden the new firmware line while preserving iteration speed.
 ## P0 (must do)
 
 - [x] Add minimal auth/guardrail for OTA and sensitive API routes
-- [ ] Validate defaults API end-to-end (create/update/persist/reboot)
+- [x] Validate defaults API end-to-end (create/update/persist/reboot)
 - [ ] Add a quick firmware regression pass:
   - [ ] boot + Wi-Fi join/captive fallback
   - [ ] screen cycling play/pause behavior
