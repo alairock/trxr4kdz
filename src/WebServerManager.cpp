@@ -327,6 +327,7 @@ void WebServerManager::handlePostScreen() {
     const char* typeStr = doc["type"] | "";
     ScreenType type;
     if (strcmp(typeStr, "clock") == 0) type = ScreenType::CLOCK;
+    else if (strcmp(typeStr, "binary_clock") == 0) type = ScreenType::BINARY_CLOCK;
     else if (strcmp(typeStr, "text_ticker") == 0) type = ScreenType::TEXT_TICKER;
     else if (strcmp(typeStr, "canvas") == 0) type = ScreenType::CANVAS;
     else if (strcmp(typeStr, "weather") == 0) type = ScreenType::WEATHER;

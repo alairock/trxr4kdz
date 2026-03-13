@@ -1,6 +1,7 @@
 #include "ScreenManager.h"
 #include "../DisplayManager.h"
 #include "ClockScreen.h"
+#include "BinaryClockScreen.h"
 #include "TextTickerScreen.h"
 #include "CanvasScreen.h"
 #include "WeatherScreen.h"
@@ -204,6 +205,7 @@ String ScreenManager::generateId(const char* typeName) {
 Screen* ScreenManager::createScreenByType(ScreenType type) {
     switch (type) {
         case ScreenType::CLOCK: return new ClockScreen();
+        case ScreenType::BINARY_CLOCK: return new BinaryClockScreen();
         case ScreenType::TEXT_TICKER: return new TextTickerScreen();
         case ScreenType::CANVAS: return new CanvasScreen();
         case ScreenType::WEATHER: {
@@ -217,6 +219,7 @@ Screen* ScreenManager::createScreenByType(ScreenType type) {
 
 ScreenType ScreenManager::typeFromString(const char* name) {
     if (strcmp(name, "clock") == 0) return ScreenType::CLOCK;
+    if (strcmp(name, "binary_clock") == 0) return ScreenType::BINARY_CLOCK;
     if (strcmp(name, "text_ticker") == 0) return ScreenType::TEXT_TICKER;
     if (strcmp(name, "canvas") == 0) return ScreenType::CANVAS;
     if (strcmp(name, "weather") == 0) return ScreenType::WEATHER;
