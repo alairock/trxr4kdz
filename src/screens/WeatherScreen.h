@@ -25,9 +25,12 @@ private:
 
     WeatherService* _weather = nullptr;
     String _zipCode;
-    uint16_t _tempColor = 0xFBE0;   // orange
-    uint16_t _humColor = 0x07FF;    // cyan
+    uint16_t _tempColor = 0xFBE0;   // kept for backward compatibility
+    uint16_t _humColor = 0x07FF;    // kept for backward compatibility
     uint8_t _fontId = 1;
+    uint16_t _tempIconColor = 0xFBE0; // icon-only color (thermometer)
+    uint16_t _humIconColor = 0x07FF;  // icon-only color (humidity)
+    uint16_t _valueColor = 0xFFFF;    // text color stays neutral
     uint32_t _tempIconId = 20275;   // Lametric thermometer
     uint32_t _humIconId = 18191;    // Lametric humidity
 

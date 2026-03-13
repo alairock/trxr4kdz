@@ -55,20 +55,20 @@ bool WeatherScreen::update(DisplayManager& display, unsigned long now) {
 
     if (_showHumidity) {
         // Humidity page
-        drawDropletIcon(display, 0, 0, _humColor);
+        drawDropletIcon(display, 0, 0, _humIconColor);
 
         char buf[10];
         int h = (int)(_weather->getHumidity() + 0.5f);
         snprintf(buf, sizeof(buf), "%d%%", h);
-        drawValue(display, 10, 0, buf, _humColor, _fontId);
+        drawValue(display, 10, 0, buf, _valueColor, _fontId);
     } else {
         // Temperature page
-        drawThermometerIcon(display, 0, 0, _tempColor);
+        drawThermometerIcon(display, 0, 0, _tempIconColor);
 
         char buf[10];
         int t = (int)(_weather->getTemperatureF() + 0.5f);
         snprintf(buf, sizeof(buf), "%dF", t);
-        drawValue(display, 10, 0, buf, _tempColor, _fontId);
+        drawValue(display, 10, 0, buf, _valueColor, _fontId);
     }
 
     return true;
