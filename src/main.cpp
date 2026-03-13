@@ -25,6 +25,10 @@ bool buzzerInitDone = false;
 bool screensStarted = false;
 unsigned long bootTime;
 
+// transient playback status overlay
+unsigned long statusFlashUntil = 0;
+String statusFlashText = "";
+
 // Boot IP scroll state
 String bootIP;
 bool bootIPScrolling = false;
@@ -147,17 +151,33 @@ void loop() {
         if (middleEvt == ButtonEvent::LONG_PRESS && screensStarted) {
             settingsMenu.enter();
         }
-        // Short press left/right navigates screens
-        if (leftEvt == ButtonEvent::SHORT_PRESS && screensStarted) {
-            screenManager.prevScreen();
+
+        // Double press middle toggles play/pause rotation
+        if (middleEvt == ButtonEvent::DOUBLE_PRESS && screensStarted) {
+            bool nowCycling = !screenManager.isCycling();
+            screenManager.setCycling(nowCycling);
+            screenManager.save();
+            statusFlashText = nowCycling ? "playing" : "paused";
+            statusFlashUntil = millis() + 1200;
         }
-        if (rightEvt == ButtonEvent::SHORT_PRESS && screensStarted) {
-            screenManager.nextScreen();
+
+        // Left/Right scrub only when paused
+        if (!screenManager.isCycling() && screensStarted) {
+            if (leftEvt == ButtonEvent::SHORT_PRESS) {
+                screenManager.prevScreen();
+            }
+            if (rightEvt == ButtonEvent::SHORT_PRESS) {
+                screenManager.nextScreen();
+            }
         }
     }
 
     if (screensStarted && !settingsMenu.isActive()) {
-        screenManager.update();
+        if (statusFlashUntil > millis()) {
+            displayManager.showSmallRainbow(statusFlashText);
+        } else {
+            screenManager.update();
+        }
     }
     displayManager.update();
 }
