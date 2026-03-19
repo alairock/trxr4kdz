@@ -13,6 +13,7 @@
 #include "MqttManager.h"
 #include "AlarmManager.h"
 #include "OvertakeManager.h"
+#include "NotificationManager.h"
 
 ConfigManager configManager;
 BuzzerManager buzzerManager;
@@ -26,6 +27,7 @@ WeatherService weatherService;
 MqttManager mqttManager;
 AlarmManager alarmManager;
 OvertakeManager overtakeManager;
+NotificationManager notificationManager;
 
 bool buzzerInitDone = false;
 bool screensStarted = false;
@@ -83,14 +85,15 @@ void setup() {
     settingsMenu.begin(displayManager, screenManager, wifiManager);
 
     // Start HTTP server (with screen manager)
-    webServerManager.begin(configManager, wifiManager, displayManager, screenManager, &weatherService, &alarmManager, &overtakeManager);
+    webServerManager.begin(configManager, wifiManager, displayManager, screenManager, &weatherService, &alarmManager, &overtakeManager, &notificationManager);
 
-    // MQTT bridge (canvas updates via MQTT topics)
-    mqttManager.begin(configManager, screenManager, overtakeManager);
+    // MQTT bridge (canvas + notification updates via MQTT topics)
+    mqttManager.begin(configManager, screenManager, overtakeManager, &notificationManager);
 
     // Alarm scheduler/renderer (global feature)
     alarmManager.begin(configManager, buzzerManager);
     overtakeManager.begin(buzzerManager, screenManager);
+    notificationManager.begin();
 
     Serial.println("=== Boot complete ===");
 }
@@ -158,10 +161,18 @@ void loop() {
     alarmManager.update();
     buttonManager.update();
 
-    // Read button events
+    // Read physical button events
     ButtonEvent leftEvt = buttonManager.getLeftEvent();
     ButtonEvent rightEvt = buttonManager.getRightEvent();
     ButtonEvent middleEvt = buttonManager.getMiddleEvent();
+
+    // Merge remote/API-triggered button actions
+    auto remote = webServerManager.takeRemoteButtonAction();
+    if (remote == WebServerManager::RemoteButtonAction::LEFT_SHORT) leftEvt = ButtonEvent::SHORT_PRESS;
+    else if (remote == WebServerManager::RemoteButtonAction::RIGHT_SHORT) rightEvt = ButtonEvent::SHORT_PRESS;
+    else if (remote == WebServerManager::RemoteButtonAction::MIDDLE_SHORT) middleEvt = ButtonEvent::SHORT_PRESS;
+    else if (remote == WebServerManager::RemoteButtonAction::MIDDLE_DOUBLE) middleEvt = ButtonEvent::DOUBLE_PRESS;
+    else if (remote == WebServerManager::RemoteButtonAction::MIDDLE_LONG) middleEvt = ButtonEvent::LONG_PRESS;
 
     if (alarmManager.isAlarming()) {
         // Alarm overrides: single middle = snooze, double middle = dismiss until next schedule
@@ -251,5 +262,12 @@ void loop() {
             screenManager.update();
         }
     }
-    displayManager.update();
+
+    bool wifiDisconnected = !wifiManager.isSTAConnected();
+    bool mqttConfigured = configManager.getMqttEnabled() && configManager.getMqttHost().length() > 0;
+    bool mqttProblem = mqttConfigured && !mqttManager.isConnected();
+    notificationManager.render(displayManager, wifiDisconnected, mqttProblem, millis());
+
+    // Notifications must be on top of everything.
+    displayManager.show();
 }

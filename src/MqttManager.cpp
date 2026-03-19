@@ -5,10 +5,11 @@
 
 MqttManager* MqttManager::_instance = nullptr;
 
-void MqttManager::begin(ConfigManager& config, ScreenManager& screens, OvertakeManager& overtake) {
+void MqttManager::begin(ConfigManager& config, ScreenManager& screens, OvertakeManager& overtake, NotificationManager* notifications) {
     _config = &config;
     _screens = &screens;
     _overtake = &overtake;
+    _notifications = notifications;
     _instance = this;
     _mqtt.setCallback(MqttManager::mqttCallbackThunk);
     _mqtt.setBufferSize(2048); // allow larger canvas draw payloads
@@ -31,6 +32,27 @@ void MqttManager::mqttCallback(char* topic, uint8_t* payload, unsigned int lengt
     _lastPayloadLen = length;
     _lastMessageMs = millis();
     String prefix = topicPrefix();
+
+    String notifRoot = prefix + "/notifications/";
+    if (t.startsWith(notifRoot) && _notifications) {
+        String restN = t.substring(notifRoot.length()); // {id}/state
+        int slashN = restN.indexOf('/');
+        if (slashN > 0) {
+            String id = restN.substring(0, slashN);
+            String actionN = restN.substring(slashN + 1);
+            if (actionN == "state") {
+                String body;
+                body.reserve(length + 1);
+                for (unsigned int i = 0; i < length; i++) body += (char)payload[i];
+                body.trim();
+                body.toLowerCase();
+                bool on = (body == "1" || body == "true" || body == "on" || body == "yes");
+                _notifications->setIndicatorState(id, on, true);
+                return;
+            }
+        }
+    }
+
     String root = prefix + "/canvas/";
     if (!t.startsWith(root)) return;
 
@@ -115,8 +137,10 @@ void MqttManager::reconnectIfNeeded() {
 
     String subDraw = topicPrefix() + "/canvas/+/draw";
     String subRgbHex = topicPrefix() + "/canvas/+/rgbhex";
+    String subNotifState = topicPrefix() + "/notifications/+/state";
     _mqtt.subscribe(subDraw.c_str());
     _mqtt.subscribe(subRgbHex.c_str());
+    _mqtt.subscribe(subNotifState.c_str());
 
     String statusTopic = topicPrefix() + "/status";
     _mqtt.publish(statusTopic.c_str(), "online", true);

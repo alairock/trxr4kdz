@@ -6,10 +6,11 @@
 #include "ConfigManager.h"
 #include "screens/ScreenManager.h"
 #include "OvertakeManager.h"
+#include "NotificationManager.h"
 
 class MqttManager {
 public:
-    void begin(ConfigManager& config, ScreenManager& screens, OvertakeManager& overtake);
+    void begin(ConfigManager& config, ScreenManager& screens, OvertakeManager& overtake, NotificationManager* notifications = nullptr);
     void update();
     static MqttManager* current() { return _instance; }
 
@@ -33,6 +34,7 @@ private:
     ConfigManager* _config = nullptr;
     ScreenManager* _screens = nullptr;
     OvertakeManager* _overtake = nullptr;
+    NotificationManager* _notifications = nullptr;
     WiFiClient _net;
     PubSubClient _mqtt{_net};
     String _serverHostCache;

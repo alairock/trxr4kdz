@@ -11,13 +11,24 @@
 #include "WeatherService.h"
 #include "AlarmManager.h"
 #include "OvertakeManager.h"
+#include "NotificationManager.h"
 
 #define FIRMWARE_VERSION "0.1.0"
 
 class WebServerManager {
 public:
-    void begin(ConfigManager& config, WiFiManager& wifi, DisplayManager& display, ScreenManager& screens, WeatherService* weather = nullptr, AlarmManager* alarm = nullptr, OvertakeManager* overtake = nullptr);
+    enum class RemoteButtonAction : uint8_t {
+        NONE,
+        LEFT_SHORT,
+        RIGHT_SHORT,
+        MIDDLE_SHORT,
+        MIDDLE_DOUBLE,
+        MIDDLE_LONG
+    };
+
+    void begin(ConfigManager& config, WiFiManager& wifi, DisplayManager& display, ScreenManager& screens, WeatherService* weather = nullptr, AlarmManager* alarm = nullptr, OvertakeManager* overtake = nullptr, NotificationManager* notifications = nullptr);
     void update();
+    RemoteButtonAction takeRemoteButtonAction();
 
 private:
     void handleStatus();
@@ -53,6 +64,11 @@ private:
     void handleOvertakeMute();
     void handleOvertakeClear();
     void handleLametricIcon();
+    void handleGetNotifications();
+    void handlePutNotificationsConfig();
+    void handlePutNotificationsState();
+    void handleNotificationsPreview();
+    void handleButtonAction();
     void handleCaptivePortal();
     void handleUI();
     void handleWifiSave();
@@ -73,10 +89,13 @@ private:
     WeatherService* _weather = nullptr;
     AlarmManager* _alarm = nullptr;
     OvertakeManager* _overtake = nullptr;
+    NotificationManager* _notifications = nullptr;
 
     bool _restartPending = false;
     unsigned long _restartAt = 0;
 
     uint8_t _otaErrorCode = 0;
     String _otaErrorMessage;
+
+    volatile RemoteButtonAction _pendingButtonAction = RemoteButtonAction::NONE;
 };

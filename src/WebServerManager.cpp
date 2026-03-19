@@ -59,10 +59,11 @@ static const char UI_HTML[] PROGMEM = R"rawliteral(<!doctype html><html><head>
 *{box-sizing:border-box}
 body{margin:0;font-family:Inter,-apple-system,Segoe UI,sans-serif;background:#0e131b;color:#e6edf3;line-height:1.35}
 .wrap{display:flex;min-height:100vh}
-.side{width:220px;background:#121a27;border-right:1px solid #28364d;padding:16px}
+.side{width:220px;background:#121a27;border-right:1px solid #28364d;padding:16px;display:flex;flex-direction:column}
 .side h1{font-size:14px;margin:0 0 12px;color:#a9c8ff;letter-spacing:.3px}
 .side button{width:100%;margin:6px 0;padding:11px 12px;border-radius:10px;border:1px solid #31425f;background:#1a2740;color:#e6efff;cursor:pointer;text-align:left}
 .side button.active{background:#2f81f7;border-color:#2f81f7;color:#fff;font-weight:600}
+.side .bottom{margin-top:auto}
 
 .main{flex:1;padding:22px 24px}
 .card{background:#131d2d;border:1px solid #2e3d57;border-radius:14px;padding:16px 16px 14px;max-width:1040px;margin-bottom:14px;box-shadow:0 4px 18px rgba(0,0,0,.2)}
@@ -100,7 +101,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:#6eb0ff;box-sh
 .hint{font-size:12px;opacity:.82}
 .hidden{display:none}
 </style></head><body>
-<div class="wrap"><aside class="side"><h1>trxr4kdz</h1><button id="tabConfig" class="active">Config</button><button id="tabScreens">Screens</button><button id="tabMqtt">MQTT</button><button id="tabAlarm">Alarm</button><button id="tabFirmware">Firmware</button><button id="tabSettings">Settings</button><a class="btn" href="https://github.com/alairock/trxr4kdz" target="_blank" rel="noopener noreferrer" style="text-align:center;text-decoration:none">GitHub</a><button onclick="location.href='/'">Back</button></aside>
+<div class="wrap"><aside class="side"><h1>trxr4kdz</h1><button id="tabConfig" class="active">Config</button><button id="tabScreens">Screens</button><button id="tabMqtt">MQTT</button><button id="tabAlarm">Alarm</button><button id="tabFirmware">Firmware</button><button id="tabNotifications">Notifications</button><button id="tabSettings">Settings</button><div class="bottom"><button id="tabButtons">Buttons</button><button onclick="location.href='/'">Back</button><button onclick="window.open('https://github.com/alairock/trxr4kdz','_blank','noopener,noreferrer')">GitHub</button></div></aside>
 <main class="main">
 <section id="pConfig" class="page active">
   <div class="card"><h3>Global Config</h3>
@@ -180,6 +181,57 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:#6eb0ff;box-sh
   </div>
 </section>
 
+<section id="pNotifications" class="page">
+  <div class="card"><h3>Notification Indicators</h3>
+    <div class="hint">Right-side indicators are persistent, API/MQTT-driven, and always rendered on top of all content.</div>
+
+    <div class="row"><b>Top Right (corner)</b></div>
+    <div class="row">
+      <label class="field compact">Color <input id="nRtColor" type="color" value="#00ff00"></label>
+      <label class="field compact">Style <select id="nRtStyle"><option value="1">1 pixel</option><option value="3">3 pixels (corner+adjacent)</option></select></label>
+      <button class="btn" id="nRtPreview">Preview</button>
+    </div>
+
+    <div class="row"><b>Middle Right (edge, fixed 2px)</b></div>
+    <div class="row">
+      <label class="field compact">Color <input id="nRmColor" type="color" value="#00ff00"></label>
+      <button class="btn" id="nRmPreview">Preview</button>
+    </div>
+
+    <div class="row"><b>Bottom Right (corner)</b></div>
+    <div class="row">
+      <label class="field compact">Color <input id="nRbColor" type="color" value="#00ff00"></label>
+      <label class="field compact">Style <select id="nRbStyle"><option value="1">1 pixel</option><option value="3">3 pixels (corner+adjacent)</option></select></label>
+      <button class="btn" id="nRbPreview">Preview</button>
+    </div>
+
+    <div class="row">
+      <button class="btn primary" id="nSave">Save Notification Config</button>
+      <span class="hint" id="nStatus"></span>
+    </div>
+
+    <div class="hint" style="line-height:1.5">
+      System indicators (left side):<br>
+      • Top-left Wi-Fi indicator flashes red when Wi-Fi is disconnected.<br>
+      • Bottom-left MQTT indicator flashes yellow when MQTT is configured but disconnected.
+    </div>
+  </div>
+</section>
+
+<section id="pButtons" class="page">
+  <div class="card"><h3>Physical Buttons (Remote Control)</h3>
+    <div class="hint">Send virtual button actions over API/UI.</div>
+    <div class="row" style="margin-top:8px">
+      <button class="btn" id="btnLeftShort">Left Short</button>
+      <button class="btn" id="btnRightShort">Right Short</button>
+      <button class="btn" id="btnMiddleShort">Middle Short</button>
+      <button class="btn" id="btnMiddleDouble">Middle Double</button>
+      <button class="btn" id="btnMiddleLong">Middle Long</button>
+      <span class="hint" id="btnStatus"></span>
+    </div>
+  </div>
+</section>
+
 <section id="pSettings" class="page">
   <div class="card"><h3>Settings Import / Export</h3>
     <div class="row">
@@ -253,20 +305,26 @@ function show(tab){
   tabMqtt.classList.toggle('active',tab==='mqtt');
   tabAlarm.classList.toggle('active',tab==='alarm');
   tabFirmware.classList.toggle('active',tab==='firmware');
+  tabNotifications.classList.toggle('active',tab==='notifications');
   tabSettings.classList.toggle('active',tab==='settings');
+  tabButtons.classList.toggle('active',tab==='buttons');
   pConfig.classList.toggle('active',tab==='config');
   pScreens.classList.toggle('active',tab==='screens');
   pMqtt.classList.toggle('active',tab==='mqtt');
   pAlarm.classList.toggle('active',tab==='alarm');
   pFirmware.classList.toggle('active',tab==='firmware');
+  pNotifications.classList.toggle('active',tab==='notifications');
   pSettings.classList.toggle('active',tab==='settings');
+  pButtons.classList.toggle('active',tab==='buttons');
 }
 tabConfig.onclick=()=>show('config');
 tabScreens.onclick=()=>{show('screens');loadScreens();};
 tabMqtt.onclick=()=>{show('mqtt');loadMqtt();};
 tabAlarm.onclick=()=>{show('alarm');loadAlarm();};
 tabFirmware.onclick=()=>show('firmware');
+tabNotifications.onclick=()=>{show('notifications');loadNotifications();};
 tabSettings.onclick=()=>show('settings');
+tabButtons.onclick=()=>show('buttons');
 
 document.querySelectorAll('#typeTabs .chip').forEach(ch=>ch.onclick=()=>{
   document.querySelectorAll('#typeTabs .chip').forEach(c=>c.classList.remove('active'));
@@ -707,6 +765,71 @@ async function importSettings(){
 
 document.getElementById('settingsExport')?.addEventListener('click', exportSettings);
 document.getElementById('settingsImport')?.addEventListener('click', importSettings);
+
+async function loadNotifications(){
+  const d = await j('/api/notifications');
+  nRtColor.value = toHex(d.rightTop?.color, '#00ff00');
+  nRtStyle.value = String(Number(d.rightTop?.style || 3));
+
+  nRmColor.value = toHex(d.rightMid?.color, '#00ff00');
+
+  nRbColor.value = toHex(d.rightBottom?.color, '#00ff00');
+  nRbStyle.value = String(Number(d.rightBottom?.style || 3));
+
+  nStatus.textContent = 'Loaded';
+}
+
+async function setNotifState(id, on){
+  const r = await fetch('/api/notifications/state', { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({id, on: !!on}) });
+  if(!r.ok) throw new Error(await r.text());
+}
+
+async function previewNotif(id){
+  const r = await fetch('/api/notifications/preview', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({id, durationMs: 1600}) });
+  if(!r.ok) throw new Error(await r.text());
+}
+
+nRtPreview?.addEventListener('click', async()=>{ try { await previewNotif('rightTop'); toast('Top-right preview','ok'); } catch(e){ toast('Preview failed: '+e.message,'err'); }});
+nRmPreview?.addEventListener('click', async()=>{ try { await previewNotif('rightMid'); toast('Mid-right preview','ok'); } catch(e){ toast('Preview failed: '+e.message,'err'); }});
+nRbPreview?.addEventListener('click', async()=>{ try { await previewNotif('rightBottom'); toast('Bottom-right preview','ok'); } catch(e){ toast('Preview failed: '+e.message,'err'); }});
+
+nSave?.addEventListener('click', async()=>{
+  try {
+    nStatus.textContent = 'Saving...';
+    const body = {
+      rightTop: { enabled: true, color: nRtColor.value || '#00FF00', style: Number(nRtStyle.value || 3) },
+      rightMid: { enabled: true, color: nRmColor.value || '#00FF00', style: 2 },
+      rightBottom: { enabled: true, color: nRbColor.value || '#00FF00', style: Number(nRbStyle.value || 3) }
+    };
+    const r = await fetch('/api/notifications/config', { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    if(!r.ok) throw new Error(await r.text());
+    nStatus.textContent = 'Saved';
+    toast('Notification config saved','ok');
+    await loadNotifications();
+  } catch(e) {
+    nStatus.textContent = 'Save failed';
+    toast('Notification save failed: '+e.message,'err');
+  }
+});
+
+async function sendButtonAction(action){
+  const s = document.getElementById('btnStatus');
+  try{
+    s.textContent='Sending...';
+    const r = await fetch('/api/buttons/action', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({action}) });
+    if(!r.ok) throw new Error(await r.text());
+    s.textContent='Sent: ' + action;
+  }catch(e){
+    s.textContent='Failed';
+    toast('Button action failed: '+e.message,'err');
+  }
+}
+
+document.getElementById('btnLeftShort')?.addEventListener('click', ()=>sendButtonAction('left_short'));
+document.getElementById('btnRightShort')?.addEventListener('click', ()=>sendButtonAction('right_short'));
+document.getElementById('btnMiddleShort')?.addEventListener('click', ()=>sendButtonAction('middle_short'));
+document.getElementById('btnMiddleDouble')?.addEventListener('click', ()=>sendButtonAction('middle_double'));
+document.getElementById('btnMiddleLong')?.addEventListener('click', ()=>sendButtonAction('middle_long'));
 
 function updateAddButtonLabel(){
   if (filterType === 'order' || filterType === 'api_docs') return;
@@ -1757,7 +1880,7 @@ setInterval(()=>{
 loadCfg();
 </script></body></html>)rawliteral";
 
-void WebServerManager::begin(ConfigManager& config, WiFiManager& wifi, DisplayManager& display, ScreenManager& screens, WeatherService* weather, AlarmManager* alarm, OvertakeManager* overtake) {
+void WebServerManager::begin(ConfigManager& config, WiFiManager& wifi, DisplayManager& display, ScreenManager& screens, WeatherService* weather, AlarmManager* alarm, OvertakeManager* overtake, NotificationManager* notifications) {
     _config = &config;
     _wifi = &wifi;
     _display = &display;
@@ -1765,6 +1888,7 @@ void WebServerManager::begin(ConfigManager& config, WiFiManager& wifi, DisplayMa
     _weather = weather;
     _alarm = alarm;
     _overtake = overtake;
+    _notifications = notifications;
 
     const char* headerKeys[] = {"X-API-Key"};
     _server.collectHeaders(headerKeys, 1);
@@ -1828,6 +1952,11 @@ void WebServerManager::begin(ConfigManager& config, WiFiManager& wifi, DisplayMa
     _server.on("/api/alarm/trigger", HTTP_POST, [this]() { handleAlarmTrigger(); });
     _server.on("/api/overtake/mute", HTTP_POST, [this]() { handleOvertakeMute(); });
     _server.on("/api/overtake/clear", HTTP_POST, [this]() { handleOvertakeClear(); });
+    _server.on("/api/notifications", HTTP_GET, [this]() { handleGetNotifications(); });
+    _server.on("/api/notifications/config", HTTP_PUT, [this]() { handlePutNotificationsConfig(); });
+    _server.on("/api/notifications/state", HTTP_PUT, [this]() { handlePutNotificationsState(); });
+    _server.on("/api/notifications/preview", HTTP_POST, [this]() { handleNotificationsPreview(); });
+    _server.on("/api/buttons/action", HTTP_POST, [this]() { handleButtonAction(); });
 
     // Screen API routes
     _server.on("/api/screens", HTTP_GET, [this]() { handleGetScreens(); });
@@ -2124,6 +2253,103 @@ void WebServerManager::handleOvertakeClear() {
     if (!_overtake) { _server.send(503, "application/json", "{\"error\":\"overtake unavailable\"}"); return; }
     _overtake->clear();
     _server.send(200, "application/json", "{\"status\":\"cleared\"}");
+}
+
+void WebServerManager::handleGetNotifications() {
+    if (!_notifications) { _server.send(503, "application/json", "{\"error\":\"notifications unavailable\"}"); return; }
+    JsonDocument doc;
+    _notifications->serialize(doc);
+    String json;
+    serializeJson(doc, json);
+    _server.send(200, "application/json", json);
+}
+
+void WebServerManager::handlePutNotificationsConfig() {
+    if (!requireAuth()) return;
+    if (!_notifications) { _server.send(503, "application/json", "{\"error\":\"notifications unavailable\"}"); return; }
+    if (!_server.hasArg("plain")) { _server.send(400, "application/json", "{\"error\":\"no body\"}"); return; }
+    JsonDocument doc;
+    if (deserializeJson(doc, _server.arg("plain")) || !doc.is<JsonObject>()) {
+        _server.send(400, "application/json", "{\"error\":\"invalid json\"}");
+        return;
+    }
+    _notifications->configure(doc.as<JsonObjectConst>());
+    _notifications->save();
+    JsonDocument out;
+    _notifications->serialize(out);
+    String json;
+    serializeJson(out, json);
+    _server.send(200, "application/json", json);
+}
+
+void WebServerManager::handlePutNotificationsState() {
+    if (!requireAuth()) return;
+    if (!_notifications) { _server.send(503, "application/json", "{\"error\":\"notifications unavailable\"}"); return; }
+    if (!_server.hasArg("plain")) { _server.send(400, "application/json", "{\"error\":\"no body\"}"); return; }
+    JsonDocument doc;
+    if (deserializeJson(doc, _server.arg("plain")) || !doc.is<JsonObject>()) {
+        _server.send(400, "application/json", "{\"error\":\"invalid json\"}");
+        return;
+    }
+    String id = doc["id"] | "";
+    bool on = doc["on"] | false;
+    if (!_notifications->setIndicatorState(id, on, true)) {
+        _server.send(400, "application/json", "{\"error\":\"invalid id\"}");
+        return;
+    }
+    _server.send(200, "application/json", "{\"status\":\"ok\"}");
+}
+
+void WebServerManager::handleNotificationsPreview() {
+    if (!requireAuth()) return;
+    if (!_notifications) { _server.send(503, "application/json", "{\"error\":\"notifications unavailable\"}"); return; }
+    if (!_server.hasArg("plain")) { _server.send(400, "application/json", "{\"error\":\"no body\"}"); return; }
+    JsonDocument doc;
+    if (deserializeJson(doc, _server.arg("plain")) || !doc.is<JsonObject>()) {
+        _server.send(400, "application/json", "{\"error\":\"invalid json\"}");
+        return;
+    }
+    String id = doc["id"] | "";
+    unsigned long ms = doc["durationMs"] | 1500;
+    if (!_notifications->previewIndicator(id, ms)) {
+        _server.send(400, "application/json", "{\"error\":\"invalid id\"}");
+        return;
+    }
+    _server.send(200, "application/json", "{\"status\":\"ok\"}");
+}
+
+void WebServerManager::handleButtonAction() {
+    if (!requireAuth()) return;
+    if (!_server.hasArg("plain")) { _server.send(400, "application/json", "{\"error\":\"no body\"}"); return; }
+    JsonDocument doc;
+    if (deserializeJson(doc, _server.arg("plain")) || !doc.is<JsonObject>()) {
+        _server.send(400, "application/json", "{\"error\":\"invalid json\"}");
+        return;
+    }
+
+    String action = doc["action"] | "";
+    action.toLowerCase();
+
+    RemoteButtonAction mapped = RemoteButtonAction::NONE;
+    if (action == "left_short") mapped = RemoteButtonAction::LEFT_SHORT;
+    else if (action == "right_short") mapped = RemoteButtonAction::RIGHT_SHORT;
+    else if (action == "middle_short") mapped = RemoteButtonAction::MIDDLE_SHORT;
+    else if (action == "middle_double") mapped = RemoteButtonAction::MIDDLE_DOUBLE;
+    else if (action == "middle_long") mapped = RemoteButtonAction::MIDDLE_LONG;
+
+    if (mapped == RemoteButtonAction::NONE) {
+        _server.send(400, "application/json", "{\"error\":\"invalid action\"}");
+        return;
+    }
+
+    _pendingButtonAction = mapped;
+    _server.send(200, "application/json", "{\"status\":\"ok\"}");
+}
+
+WebServerManager::RemoteButtonAction WebServerManager::takeRemoteButtonAction() {
+    RemoteButtonAction a = _pendingButtonAction;
+    _pendingButtonAction = RemoteButtonAction::NONE;
+    return a;
 }
 
 void WebServerManager::handleLametricSearch() {
