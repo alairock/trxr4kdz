@@ -44,11 +44,16 @@ static const uint8_t* getIconById(uint16_t id) {
     }
 }
 
+bool IconWidget::isSupportedId(uint16_t id) {
+    return getIconById(id) != nullptr;
+}
+
 void IconWidget::draw(DisplayManager& display, unsigned long now) {
     const uint8_t* icon = getIconById(iconId);
-    if (icon) {
-        display.drawBitmap(x, y, icon, 8, 8, color);
+    if (!icon) {
+        return; // unsupported id: draw nothing instead of wrong icon
     }
+    display.drawBitmap(x, y, icon, 8, 8, color);
 }
 
 void IconWidget::configure(const JsonObjectConst& cfg) {

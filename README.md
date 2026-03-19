@@ -59,6 +59,7 @@ pio device monitor
 - `text_ticker`
 - `canvas`
 - `weather`
+- `battery`
 
 ### Common screen fields
 

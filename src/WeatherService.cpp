@@ -39,6 +39,8 @@ String WeatherService::getZipCode() const { return _zipCode; }
 bool WeatherService::hasZipCode() const { return _zipCode.length() > 0; }
 float WeatherService::getTemperatureF() const { return _tempF; }
 float WeatherService::getHumidity() const { return _humidity; }
+int WeatherService::getWeatherCode() const { return _weatherCode; }
+float WeatherService::getWindMph() const { return _windMph; }
 bool WeatherService::hasData() const { return _hasData; }
 bool WeatherService::isOnline() const { return _online; }
 bool WeatherService::hasGeocode() const { return _hasGeocode; }
@@ -165,7 +167,12 @@ void WeatherService::applyJobResult(unsigned long now) {
             _lastError = "timeout";
             _lastFailureMs = now;
             _consecutiveFailures++;
-            _backoffMs = min(NET_MAX_BACKOFF, (unsigned long)(NET_BASE_BACKOFF << min((unsigned long)4, _consecutiveFailures - 1)));
+            if (_consecutiveFailures <= 2) {
+                _backoffMs = 5000; // fast retries for transient startup/network hiccups
+            } else {
+                unsigned long exp = min((unsigned long)4, _consecutiveFailures - 3);
+                _backoffMs = min(NET_MAX_BACKOFF, (unsigned long)(NET_BASE_BACKOFF << exp));
+            }
             _nextAttemptAt = now + _backoffMs;
             _state = NetworkState::WAITING_BACKOFF;
             _jobInFlight = false;  // stale worker result will be ignored via opId mismatch
@@ -181,7 +188,12 @@ void WeatherService::applyJobResult(unsigned long now) {
         _lastError = local.error;
         _lastFailureMs = now;
         _consecutiveFailures++;
-        _backoffMs = min(NET_MAX_BACKOFF, (unsigned long)(NET_BASE_BACKOFF << min((unsigned long)4, _consecutiveFailures - 1)));
+        if (_consecutiveFailures <= 2) {
+            _backoffMs = 5000; // fast retries for transient startup/network hiccups
+        } else {
+            unsigned long exp = min((unsigned long)4, _consecutiveFailures - 3);
+            _backoffMs = min(NET_MAX_BACKOFF, (unsigned long)(NET_BASE_BACKOFF << exp));
+        }
         _nextAttemptAt = now + _backoffMs;
         _state = NetworkState::WAITING_BACKOFF;
         return;
@@ -206,6 +218,8 @@ void WeatherService::applyJobResult(unsigned long now) {
     if (local.type == JobType::FETCH) {
         _tempF = local.tempF;
         _humidity = local.humidity;
+        _weatherCode = local.weatherCode;
+        _windMph = local.windMph;
         _hasData = true;
         _online = true;
         _lastFetch = now;
@@ -278,16 +292,14 @@ bool WeatherService::doGeocode(String& errOut, float& latOut, float& lonOut) {
     return true;
 }
 
-bool WeatherService::doFetch(String& errOut, float& tempOut, float& humidityOut) {
-    WiFiClientSecure client;
-    client.setInsecure();
-
+bool WeatherService::doFetch(String& errOut, float& tempOut, float& humidityOut, int& weatherCodeOut, float& windMphOut) {
     HTTPClient http;
-    String url = "https://api.open-meteo.com/v1/forecast?latitude=" +
+    String url = "http://api.open-meteo.com/v1/forecast?latitude=" +
                  String(_lat, 4) + "&longitude=" + String(_lon, 4) +
-                 "&current=temperature_2m,relative_humidity_2m&temperature_unit=fahrenheit";
+                 "&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m"
+                 "&temperature_unit=fahrenheit&wind_speed_unit=mph";
 
-    http.begin(client, url);
+    http.begin(url);
     http.setTimeout(NET_OP_TIMEOUT);
 
     int code = http.GET();
@@ -315,6 +327,8 @@ bool WeatherService::doFetch(String& errOut, float& tempOut, float& humidityOut)
 
     tempOut = current["temperature_2m"] | 0.0f;
     humidityOut = current["relative_humidity_2m"] | 0.0f;
+    weatherCodeOut = current["weather_code"] | -1;
+    windMphOut = current["wind_speed_10m"] | 0.0f;
     return true;
 }
 
@@ -345,7 +359,7 @@ void WeatherService::workerTaskLoop() {
         if (job == JobType::GEOCODE) {
             out.ok = doGeocode(out.error, out.lat, out.lon);
         } else if (job == JobType::FETCH) {
-            out.ok = doFetch(out.error, out.tempF, out.humidity);
+            out.ok = doFetch(out.error, out.tempF, out.humidity, out.weatherCode, out.windMph);
         }
 
         out.latencyMs = millis() - t0;

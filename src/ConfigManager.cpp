@@ -35,6 +35,24 @@ bool ConfigManager::begin() {
     _apPassword = (doc["ap_password"] | "12345678");
     _apiToken = (doc["api_token"] | "");
 
+    _mqttEnabled = doc["mqtt_enabled"] | false;
+    _mqttHost = doc["mqtt_host"] | "";
+    _mqttPort = doc["mqtt_port"] | 1883;
+    _mqttUser = doc["mqtt_user"] | "";
+    _mqttPassword = doc["mqtt_password"] | "";
+    _mqttBaseTopic = doc["mqtt_base_topic"] | "trxr4kdz";
+
+    _alarmEnabled = doc["alarm_enabled"] | false;
+    _alarmHour = doc["alarm_hour"] | 7;
+    _alarmMinute = doc["alarm_minute"] | 0;
+    _alarmDaysMask = doc["alarm_days_mask"] | 0b0111110;
+    _alarmFlashMode = doc["alarm_flash_mode"] | "solid";
+    _alarmColor = doc["alarm_color"] | "#FF0000";
+    _alarmVolume = doc["alarm_volume"] | 80;
+    _alarmTone = doc["alarm_tone"] | "beep";
+    _alarmSnoozeMinutes = doc["alarm_snooze_minutes"] | 9;
+    _alarmTimeoutMinutes = doc["alarm_timeout_minutes"] | 10;
+
     Serial.printf("[Config] Loaded - SSID: %s, brightness: %d, hostname: %s\n",
                   _wifiSSID.c_str(), _brightness, _hostname.c_str());
     return true;
@@ -48,6 +66,24 @@ bool ConfigManager::save() {
     doc["hostname"] = _hostname;
     doc["ap_password"] = _apPassword;
     doc["api_token"] = _apiToken;
+
+    doc["mqtt_enabled"] = _mqttEnabled;
+    doc["mqtt_host"] = _mqttHost;
+    doc["mqtt_port"] = _mqttPort;
+    doc["mqtt_user"] = _mqttUser;
+    doc["mqtt_password"] = _mqttPassword;
+    doc["mqtt_base_topic"] = _mqttBaseTopic;
+
+    doc["alarm_enabled"] = _alarmEnabled;
+    doc["alarm_hour"] = _alarmHour;
+    doc["alarm_minute"] = _alarmMinute;
+    doc["alarm_days_mask"] = _alarmDaysMask;
+    doc["alarm_flash_mode"] = _alarmFlashMode;
+    doc["alarm_color"] = _alarmColor;
+    doc["alarm_volume"] = _alarmVolume;
+    doc["alarm_tone"] = _alarmTone;
+    doc["alarm_snooze_minutes"] = _alarmSnoozeMinutes;
+    doc["alarm_timeout_minutes"] = _alarmTimeoutMinutes;
 
     File file = LittleFS.open("/config.json", "w");
     if (!file) {

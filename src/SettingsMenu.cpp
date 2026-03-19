@@ -2,12 +2,14 @@
 #include "DisplayManager.h"
 #include "screens/ScreenManager.h"
 #include "screens/ClockScreen.h"
+#include "WiFiManager.h"
 
-const char* SettingsMenu::SETTING_NAMES[] = { "Font", "Calendar", "Day Dots" };
+const char* SettingsMenu::SETTING_NAMES[] = { "Font", "Calendar", "Day Dots", "Config URL" };
 
-void SettingsMenu::begin(DisplayManager& display, ScreenManager& screens) {
+void SettingsMenu::begin(DisplayManager& display, ScreenManager& screens, WiFiManager& wifi) {
     _display = &display;
     _screens = &screens;
+    _wifi = &wifi;
 }
 
 void SettingsMenu::snapshotState() {
@@ -46,6 +48,8 @@ void SettingsMenu::enter() {
     _active = true;
     _menuIndex = 0;
     _inSubmenu = false;
+    _urlScrollX = MATRIX_WIDTH;
+    _urlLastStep = millis();
     snapshotState();
     draw();
 }
@@ -90,6 +94,18 @@ void SettingsMenu::update(ButtonEvent left, ButtonEvent right, ButtonEvent middl
                     static_cast<ClockScreen*>(s)->setFontId(_savedFont);
                 }
                 _fontIndex = _savedFont;
+                _inSubmenu = false;
+                needRedraw = true;
+            }
+        } else if (_menuIndex == 3) {
+            // Config URL viewer (read-only, auto-scrolling)
+            unsigned long now = millis();
+            if (now - _urlLastStep >= 70) {
+                _urlLastStep = now;
+                _urlScrollX--;
+                needRedraw = true;
+            }
+            if (middle == ButtonEvent::SHORT_PRESS || middle == ButtonEvent::DOUBLE_PRESS) {
                 _inSubmenu = false;
                 needRedraw = true;
             }
@@ -138,6 +154,10 @@ void SettingsMenu::update(ButtonEvent left, ButtonEvent right, ButtonEvent middl
         if (middle == ButtonEvent::SHORT_PRESS) {
             _inSubmenu = true;
             snapshotState(); // snapshot for cancel
+            if (_menuIndex == 3) {
+                _urlScrollX = MATRIX_WIDTH;
+                _urlLastStep = millis();
+            }
             needRedraw = true;
         }
         if (middle == ButtonEvent::DOUBLE_PRESS || middle == ButtonEvent::LONG_PRESS) {
@@ -155,6 +175,8 @@ void SettingsMenu::draw() {
     if (_inSubmenu) {
         if (_menuIndex == 0) {
             drawFontSelector();
+        } else if (_menuIndex == 3) {
+            drawConfigUrl();
         } else {
             drawToggleSetting(SETTING_NAMES[_menuIndex], getToggle(_menuIndex));
         }
@@ -216,4 +238,29 @@ void SettingsMenu::drawToggleSetting(const char* label, bool value) {
     int16_t stateX = (MATRIX_WIDTH - stateW) / 2;
     int16_t stateY = (8 - DisplayManager::fontHeight(1)) / 2;
     _display->drawFontText(stateX, stateY, state, stateColor, 1);
+}
+
+void SettingsMenu::drawConfigUrl() {
+    _display->clear();
+
+    String host = "http://";
+    if (_wifi) {
+        if (_wifi->isSTAConnected()) host += _wifi->getSTAIP();
+        else host += _wifi->getAPIP();
+    } else {
+        host += "192.168.0.48";
+    }
+
+    uint8_t charW = DisplayManager::fontCharWidth(1);
+    int16_t textW = 0;
+    for (unsigned int i = 0; i < host.length(); i++) {
+        textW += (host[i] == ':' || host[i] == '.') ? (charW / 2) : charW;
+    }
+
+    int16_t y = (8 - DisplayManager::fontHeight(1)) / 2;
+    _display->drawFontText(_urlScrollX, y, host, 0xFFFF, 1);
+
+    if (_urlScrollX < -textW) {
+        _urlScrollX = MATRIX_WIDTH;
+    }
 }

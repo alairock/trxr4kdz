@@ -9,12 +9,14 @@
 #include "DisplayManager.h"
 #include "screens/ScreenManager.h"
 #include "WeatherService.h"
+#include "AlarmManager.h"
+#include "OvertakeManager.h"
 
 #define FIRMWARE_VERSION "0.1.0"
 
 class WebServerManager {
 public:
-    void begin(ConfigManager& config, WiFiManager& wifi, DisplayManager& display, ScreenManager& screens, WeatherService* weather = nullptr);
+    void begin(ConfigManager& config, WiFiManager& wifi, DisplayManager& display, ScreenManager& screens, WeatherService* weather = nullptr, AlarmManager* alarm = nullptr, OvertakeManager* overtake = nullptr);
     void update();
 
 private:
@@ -40,7 +42,19 @@ private:
     void handlePutScreenDefaults();
     void handleCanvasPush();
     void handleCanvasDraw();
+    void handleCanvasFrame();
+    void handlePreview();
+    void handleLametricSearch();
+    void handleMqttStatus();
+    void handleGetAlarm();
+    void handlePutAlarm();
+    void handleAlarmPreview();
+    void handleAlarmTrigger();
+    void handleOvertakeMute();
+    void handleOvertakeClear();
+    void handleLametricIcon();
     void handleCaptivePortal();
+    void handleUI();
     void handleWifiSave();
     void scheduleRestart(unsigned long delayMs);
 
@@ -57,7 +71,12 @@ private:
     DisplayManager* _display = nullptr;
     ScreenManager* _screens = nullptr;
     WeatherService* _weather = nullptr;
+    AlarmManager* _alarm = nullptr;
+    OvertakeManager* _overtake = nullptr;
 
     bool _restartPending = false;
     unsigned long _restartAt = 0;
+
+    uint8_t _otaErrorCode = 0;
+    String _otaErrorMessage;
 };

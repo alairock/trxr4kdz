@@ -5,10 +5,11 @@
 
 class DisplayManager;
 class ScreenManager;
+class WiFiManager;
 
 class SettingsMenu {
 public:
-    void begin(DisplayManager& display, ScreenManager& screens);
+    void begin(DisplayManager& display, ScreenManager& screens, WiFiManager& wifi);
     void update(ButtonEvent left, ButtonEvent right, ButtonEvent middle);
     bool isActive() const { return _active; }
     void enter();
@@ -19,6 +20,7 @@ private:
     void drawSettingsList();
     void drawFontSelector();
     void drawToggleSetting(const char* label, bool value);
+    void drawConfigUrl();
     void drawDots(uint8_t count, uint8_t activeIndex);
 
     // Read/apply current screen state
@@ -28,6 +30,7 @@ private:
 
     DisplayManager* _display = nullptr;
     ScreenManager* _screens = nullptr;
+    WiFiManager* _wifi = nullptr;
     bool _active = false;
 
     // Menu navigation
@@ -42,7 +45,11 @@ private:
     bool _savedCalendar = false;
     bool _savedDayIndicator = true;
 
-    // Settings: 0=Font, 1=Calendar, 2=Day Dots
-    static const uint8_t NUM_SETTINGS = 3;
+    // Config URL scroller state
+    int16_t _urlScrollX = 32;
+    unsigned long _urlLastStep = 0;
+
+    // Settings: 0=Font, 1=Calendar, 2=Day Dots, 3=Config URL
+    static const uint8_t NUM_SETTINGS = 4;
     static const char* SETTING_NAMES[];
 };

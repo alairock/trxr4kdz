@@ -107,6 +107,20 @@ void ClockScreen::configure(const JsonObjectConst& cfg) {
 
     if (cfg["font"].is<int>()) _fontId = cfg["font"].as<uint8_t>();
 
+    if (cfg["weekStart"].is<const char*>()) {
+        String s = cfg["weekStart"].as<String>();
+        s.toLowerCase();
+        if (s == "monday" || s == "mon") _dayIndicator.weekStartsMonday = true;
+        else if (s == "sunday" || s == "sun") _dayIndicator.weekStartsMonday = false;
+    }
+
+    if (cfg["dayIndicatorActive"].is<const char*>()) {
+        _dayIndicator.activeColor = DisplayManager::hexToColor(cfg["dayIndicatorActive"].as<String>());
+    }
+    if (cfg["dayIndicatorInactive"].is<const char*>()) {
+        _dayIndicator.inactiveColor = DisplayManager::hexToColor(cfg["dayIndicatorInactive"].as<String>());
+    }
+
     _time.use24h = _use24h;
     _time.fontId = _fontId;
     applyTimezone();
@@ -117,6 +131,20 @@ void ClockScreen::serialize(JsonObject& out) const {
     out["use24h"] = _use24h;
     out["timezone"] = _timezone;
     out["font"] = _fontId;
+    out["weekStart"] = _dayIndicator.weekStartsMonday ? "monday" : "sunday";
+    auto color565ToHexLocal = [](uint16_t c) {
+        uint8_t r5 = (c >> 11) & 0x1F;
+        uint8_t g6 = (c >> 5) & 0x3F;
+        uint8_t b5 = c & 0x1F;
+        uint8_t r = (r5 << 3) | (r5 >> 2);
+        uint8_t g = (g6 << 2) | (g6 >> 4);
+        uint8_t b = (b5 << 3) | (b5 >> 2);
+        char outHex[8];
+        snprintf(outHex, sizeof(outHex), "#%02X%02X%02X", r, g, b);
+        return String(outHex);
+    };
+    out["dayIndicatorActive"] = color565ToHexLocal(_dayIndicator.activeColor);
+    out["dayIndicatorInactive"] = color565ToHexLocal(_dayIndicator.inactiveColor);
 
     JsonArray comps = out["complications"].to<JsonArray>();
     if (_showTime) comps.add("time");

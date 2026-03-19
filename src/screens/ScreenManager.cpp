@@ -5,6 +5,7 @@
 #include "TextTickerScreen.h"
 #include "CanvasScreen.h"
 #include "WeatherScreen.h"
+#include "BatteryScreen.h"
 #include "../WeatherService.h"
 #include <LittleFS.h>
 
@@ -68,6 +69,15 @@ Screen* ScreenManager::addScreen(ScreenType type, const String& id) {
     s->order = _count;
     applyDefaultsToScreen(s);
     _screens[_count++] = s;
+
+    // If runtime is already started and nothing is active (e.g., all screens were disabled),
+    // activate this new enabled screen immediately.
+    if (_started && _activeIndex < 0 && s->enabled) {
+        _activeIndex = _count - 1;
+        _screens[_activeIndex]->activate();
+        _lastSwitch = millis();
+    }
+
     return s;
 }
 
@@ -214,6 +224,7 @@ Screen* ScreenManager::createScreenByType(ScreenType type) {
             ws->setWeatherService(_weatherService);
             return ws;
         }
+        case ScreenType::BATTERY: return new BatteryScreen();
         default: return nullptr;
     }
 }
@@ -224,6 +235,7 @@ ScreenType ScreenManager::typeFromString(const char* name) {
     if (strcmp(name, "text_ticker") == 0) return ScreenType::TEXT_TICKER;
     if (strcmp(name, "canvas") == 0) return ScreenType::CANVAS;
     if (strcmp(name, "weather") == 0) return ScreenType::WEATHER;
+    if (strcmp(name, "battery") == 0) return ScreenType::BATTERY;
     return ScreenType::CLOCK; // default
 }
 

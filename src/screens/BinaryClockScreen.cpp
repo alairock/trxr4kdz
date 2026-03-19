@@ -3,6 +3,18 @@
 #include <time.h>
 #include <FastLED.h>
 
+static String color565ToHex(uint16_t c) {
+    uint8_t r5 = (c >> 11) & 0x1F;
+    uint8_t g6 = (c >> 5) & 0x3F;
+    uint8_t b5 = c & 0x1F;
+    uint8_t r = (r5 << 3) | (r5 >> 2);
+    uint8_t g = (g6 << 2) | (g6 >> 4);
+    uint8_t b = (b5 << 3) | (b5 >> 2);
+    char out[8];
+    snprintf(out, sizeof(out), "#%02X%02X%02X", r, g, b);
+    return String(out);
+}
+
 uint16_t BinaryClockScreen::colorForMode(IndicatorMode mode, unsigned long now, uint8_t slot) const {
     switch (mode) {
         case IndicatorMode::WHITE: return 0xFFFF;
@@ -21,7 +33,7 @@ uint16_t BinaryClockScreen::colorForMode(IndicatorMode mode, unsigned long now, 
             return DisplayManager::rgb565(c.r, c.g, c.b);
         }
     }
-    return _pmColor;
+    return 0xF800;
 }
 
 BinaryClockScreen::IndicatorMode BinaryClockScreen::modeFromString(const String& s) const {
@@ -76,19 +88,24 @@ bool BinaryClockScreen::update(DisplayManager& display, unsigned long now) {
 
     // 6 columns of 2px + 1px spacing, plus 2 wider group gaps => 22px total.
     // centered on 32px -> x starts at 5.
-    int x = 5;
+    // Per-digit BCD bit heights for HH:MM:SS => 2/4/3/4/3/4
+    static const uint8_t bitHeights[6] = {2, 4, 3, 4, 3, 4};
+
+    int x = 6; // shift binary columns right by 1px (keep AM/PM at top-left)
+    uint8_t slot = 0;
     for (int i = 0; i < 6; i++) {
-        for (int bit = 0; bit < 4; bit++) {
+        for (int bit = 0; bit < bitHeights[i]; bit++) {
             bool on = (digits[i] >> bit) & 1;
             int y = 6 - (bit * 2); // bit0 at bottom rows 6-7
             uint16_t c = _offColor;
             if (on) {
-                c = _useOnMode ? colorForMode(_onMode, now, (uint8_t)(i * 4 + bit)) : _onColor;
+                c = _useOnMode ? colorForMode(_onMode, now, slot) : _onColor;
             }
             display.drawPixel(x, y, c);
             display.drawPixel(x + 1, y, c);
             display.drawPixel(x, y + 1, c);
             display.drawPixel(x + 1, y + 1, c);
+            slot++;
         }
 
         x += 3;
@@ -127,15 +144,20 @@ void BinaryClockScreen::configure(const JsonObjectConst& cfg) {
         _useOnMode = false;
     }
     if (cfg["offColor"].is<const char*>()) _offColor = DisplayManager::hexToColor(cfg["offColor"].as<String>());
-    if (cfg["pmColor"].is<const char*>()) _pmColor = DisplayManager::hexToColor(cfg["pmColor"].as<String>());
 
     if (cfg["indicatorMode"].is<const char*>()) {
         _indicatorMode = modeFromString(cfg["indicatorMode"].as<String>());
     }
 
     if (cfg["onMode"].is<const char*>()) {
-        _onMode = modeFromString(cfg["onMode"].as<String>());
-        _useOnMode = true;
+        String m = cfg["onMode"].as<String>();
+        m.toLowerCase();
+        if (m == "custom") {
+            _useOnMode = false;
+        } else {
+            _onMode = modeFromString(m);
+            _useOnMode = true;
+        }
     }
 }
 
@@ -143,4 +165,6 @@ void BinaryClockScreen::serialize(JsonObject& out) const {
     out["use24h"] = _use24h;
     out["indicatorMode"] = modeToString(_indicatorMode);
     out["onMode"] = _useOnMode ? modeToString(_onMode) : "custom";
+    out["onColor"] = color565ToHex(_onColor);
+    out["offColor"] = color565ToHex(_offColor);
 }

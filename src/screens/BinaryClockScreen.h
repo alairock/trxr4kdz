@@ -29,7 +29,6 @@ private:
     bool _use24h = false;
     uint16_t _onColor = 0xD81F;      // bright magenta/purple
     uint16_t _offColor = 0x580B;     // slightly brighter dim purple (AM + unlit dots)
-    uint16_t _pmColor = 0xF800;      // legacy PM color fallback
     IndicatorMode _indicatorMode = IndicatorMode::RED;
     bool _useOnMode = false;
     IndicatorMode _onMode = IndicatorMode::PURPLE;

@@ -1,6 +1,7 @@
 #include "WeatherScreen.h"
 #include "../DisplayManager.h"
 #include "../WeatherService.h"
+#include "WeatherIconFrames.h"
 
 // Lametric icon thumbnails converted to 1-bit 8x8 bitmaps
 // 20275 thermometer, 18191 humidity
@@ -49,6 +50,8 @@ static const uint16_t LAMETRIC_18191_HUMIDITY_RGB565[64] = {
     0x0000,0x0000,0x041F,0x041F,0x041F,0x041F,0x041F,0x0000,
 };
 
+// Weather condition icons are sourced from LaMetric IDs selected in chat,
+// pre-baked into frame/color tables in WeatherIconFrames.h (including GIF frames).
 void WeatherScreen::setZipCode(const String& zip) {
     _zipCode = zip;
     if (_weather) _weather->setZipCode(zip);
@@ -75,9 +78,76 @@ void WeatherScreen::drawLametricColorIcon(DisplayManager& display, int16_t ox, i
     for (int y = 0; y < 8; y++) {
         for (int x = 0; x < 8; x++) {
             uint16_t c = px[y * 8 + x];
-            if (c != 0x0000) {
-                display.drawPixel(ox + x, oy + y, c);
-            }
+            if (c != 0x0000) display.drawPixel(ox + x, oy + y, c);
+        }
+    }
+}
+
+WeatherScreen::WeatherKind WeatherScreen::classifyWeather(int weatherCode, float windMph) const {
+    if (windMph >= 18.0f) return WeatherKind::WINDY;
+    if (weatherCode == 0) return WeatherKind::SUNNY;
+    if (weatherCode == 1 || weatherCode == 2) return WeatherKind::PARTLY_CLOUDY;
+    if (weatherCode == 3) return WeatherKind::CLOUDY;
+    if (weatherCode == 45 || weatherCode == 48) return WeatherKind::FOGGY;
+    if ((weatherCode >= 51 && weatherCode <= 67) || (weatherCode >= 80 && weatherCode <= 82)) return WeatherKind::RAINY;
+    if ((weatherCode >= 71 && weatherCode <= 77) || weatherCode == 85 || weatherCode == 86) return WeatherKind::SNOWY;
+    if (weatherCode == 95 || weatherCode == 96 || weatherCode == 99) return WeatherKind::LIGHTNING;
+    return WeatherKind::UNKNOWN;
+}
+
+void WeatherScreen::drawWeatherIcon(DisplayManager& display, int16_t ox, int16_t oy) {
+    using namespace WeatherIconFrames;
+
+    WeatherKind kind = WeatherKind::UNKNOWN;
+    if (_weather) kind = classifyWeather(_weather->getWeatherCode(), _weather->getWindMph());
+
+    const uint16_t (*frames)[64] = nullptr;
+    const uint16_t* delays = nullptr;
+    uint8_t count = 1;
+
+    switch (kind) {
+        case WeatherKind::SUNNY:
+            frames = SUNNY_FRAMES; delays = SUNNY_DELAYS_MS; count = SUNNY_FRAME_COUNT; break;
+        case WeatherKind::PARTLY_CLOUDY:
+            frames = PARTLY_CLOUDY_FRAMES; delays = PARTLY_CLOUDY_DELAYS_MS; count = PARTLY_CLOUDY_FRAME_COUNT; break;
+        case WeatherKind::CLOUDY:
+            frames = CLOUDY_FRAMES; delays = CLOUDY_DELAYS_MS; count = CLOUDY_FRAME_COUNT; break;
+        case WeatherKind::RAINY:
+            frames = RAINY_FRAMES; delays = RAINY_DELAYS_MS; count = RAINY_FRAME_COUNT; break;
+        case WeatherKind::SNOWY:
+            frames = SNOWY_FRAMES; delays = SNOWY_DELAYS_MS; count = SNOWY_FRAME_COUNT; break;
+        case WeatherKind::LIGHTNING:
+            frames = LIGHTNING_FRAMES; delays = LIGHTNING_DELAYS_MS; count = LIGHTNING_FRAME_COUNT; break;
+        case WeatherKind::WINDY:
+            frames = WINDY_FRAMES; delays = WINDY_DELAYS_MS; count = WINDY_FRAME_COUNT; break;
+        case WeatherKind::FOGGY:
+            frames = FOGGY_FRAMES; delays = FOGGY_DELAYS_MS; count = FOGGY_FRAME_COUNT; break;
+        default:
+            frames = CLOUDY_FRAMES; delays = CLOUDY_DELAYS_MS; count = CLOUDY_FRAME_COUNT; break;
+    }
+
+    if (!frames || count == 0) return;
+
+    uint32_t total = 0;
+    for (uint8_t i = 0; i < count; i++) total += delays[i];
+    if (total == 0) total = 1;
+
+    uint32_t t = millis() % total;
+    uint8_t frameIndex = 0;
+    uint32_t acc = 0;
+    for (uint8_t i = 0; i < count; i++) {
+        acc += delays[i];
+        if (t < acc) {
+            frameIndex = i;
+            break;
+        }
+    }
+
+    const uint16_t* px = frames[frameIndex];
+    for (int y = 0; y < 8; y++) {
+        for (int x = 0; x < 8; x++) {
+            uint16_t c = px[y * 8 + x];
+            if (c != 0x0000) display.drawPixel(ox + x, oy + y, c);
         }
     }
 }
@@ -90,14 +160,12 @@ bool WeatherScreen::update(DisplayManager& display, unsigned long now) {
         return true;
     }
 
-    // Flip between temp and humidity
     if (now - _lastFlip >= (unsigned long)_flipInterval * 1000UL) {
         _showHumidity = !_showHumidity;
         _lastFlip = now;
     }
 
     if (_showHumidity) {
-        // Humidity page
         drawDropletIcon(display, 0, 0, _humIconColor);
 
         char buf[10];
@@ -105,13 +173,10 @@ bool WeatherScreen::update(DisplayManager& display, unsigned long now) {
         snprintf(buf, sizeof(buf), "%d%%", h);
         drawValue(display, 10, 0, buf, _valueColor, _fontId);
     } else {
-        // Temperature page
-        drawThermometerIcon(display, 0, 0, _tempIconColor);
+        drawWeatherIcon(display, 0, 0);
 
-        char buf[10];
         int t = (int)(_weather->getTemperatureF() + 0.5f);
-        snprintf(buf, sizeof(buf), "%dF", t);
-        drawValue(display, 10, 0, buf, _valueColor, _fontId);
+        drawTemperatureValue(display, 10, 0, t, _valueColor, _fontId);
     }
 
     return true;
@@ -121,53 +186,19 @@ void WeatherScreen::drawValue(DisplayManager& display, int16_t ox, int16_t oy,
                                const char* text, uint16_t color, uint8_t fontId) {
     uint8_t charW = DisplayManager::fontCharWidth(fontId);
     int16_t textW = strlen(text) * charW;
-    // Center in remaining 22px (32 - 10 icon area)
     int16_t availW = MATRIX_WIDTH - ox;
     int16_t tx = ox + (availW - textW) / 2;
-    // Center vertically
     int16_t ty = (8 - DisplayManager::fontHeight(fontId)) / 2;
     display.drawFontText(tx, ty, text, color, fontId);
 }
 
-// 8x8 thermometer icon
-void WeatherScreen::drawThermometerIcon(DisplayManager& display, int16_t ox, int16_t oy, uint16_t color) {
-    const uint16_t* iconColor = getLametricIconColor8x8(_tempIconId);
-    if (iconColor) {
-        drawLametricColorIcon(display, ox, oy, iconColor);
-        return;
-    }
-
-    const uint8_t* icon = getLametricIconBitmap(_tempIconId);
-    if (icon) {
-        display.drawBitmap(ox, oy, icon, 8, 8, color);
-        return;
-    }
-
-    // Fallback legacy shape
-    uint16_t dim = 0x4A49;
-    display.drawPixel(ox+1, oy+0, dim);
-    display.drawPixel(ox+2, oy+0, dim);
-    display.drawPixel(ox+0, oy+1, dim);
-    display.drawPixel(ox+3, oy+1, dim);
-    display.drawPixel(ox+0, oy+2, dim);
-    display.drawPixel(ox+2, oy+2, color);
-    display.drawPixel(ox+3, oy+2, dim);
-    display.drawPixel(ox+0, oy+3, dim);
-    display.drawPixel(ox+3, oy+3, dim);
-    display.drawPixel(ox+0, oy+4, dim);
-    display.drawPixel(ox+2, oy+4, color);
-    display.drawPixel(ox+3, oy+4, dim);
-    display.drawPixel(ox+0, oy+5, dim);
-    display.drawPixel(ox+3, oy+5, dim);
-    display.drawPixel(ox+0, oy+6, color);
-    display.drawPixel(ox+1, oy+6, color);
-    display.drawPixel(ox+2, oy+6, color);
-    display.drawPixel(ox+3, oy+6, color);
-    display.drawPixel(ox+1, oy+7, color);
-    display.drawPixel(ox+2, oy+7, color);
+void WeatherScreen::drawTemperatureValue(DisplayManager& display, int16_t ox, int16_t oy,
+                                         int tempF, uint16_t color, uint8_t fontId) {
+    char buf[10];
+    snprintf(buf, sizeof(buf), "%dF", tempF);
+    drawValue(display, ox, oy, buf, color, fontId);
 }
 
-// 8x8 water droplet icon
 void WeatherScreen::drawDropletIcon(DisplayManager& display, int16_t ox, int16_t oy, uint16_t color) {
     const uint16_t* iconColor = getLametricIconColor8x8(_humIconId);
     if (iconColor) {
@@ -181,7 +212,6 @@ void WeatherScreen::drawDropletIcon(DisplayManager& display, int16_t ox, int16_t
         return;
     }
 
-    // Fallback legacy shape
     display.drawPixel(ox+2, oy+0, color);
     display.drawPixel(ox+2, oy+1, color);
     display.drawPixel(ox+1, oy+2, color);

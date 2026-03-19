@@ -36,7 +36,7 @@ void TimeWidget::draw(DisplayManager& display, unsigned long now) {
         }
         // Narrow chars (colon/space) are roughly half width
         int16_t textWidth = (textLen - colonCount) * charW + colonCount * (charW / 2);
-        drawX = x + (displayWidth - textWidth) / 2;
+        drawX = x + (displayWidth - textWidth) / 2 + 1; // slight right bias for visual centering on 32px matrix
     }
     display.drawFontText(drawX, y, buf, color, fontId);
 }

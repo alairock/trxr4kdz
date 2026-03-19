@@ -7,6 +7,7 @@ public:
     void draw(DisplayManager& display, unsigned long now) override;
     void configure(const JsonObjectConst& cfg) override;
     void serialize(JsonObject& out) const override;
+    static bool isSupportedId(uint16_t id);
 
     uint16_t iconId = 0;
     uint16_t color = 0xFFFF;

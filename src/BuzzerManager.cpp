@@ -18,16 +18,24 @@ void BuzzerManager::ready() {
     Serial.println("[Buzzer] Ready");
 }
 
-void BuzzerManager::beep(uint16_t freq, uint16_t durationMs) {
+void BuzzerManager::beep(uint16_t freq, uint16_t durationMs, uint8_t volume) {
     if (!_ready) return;
+    uint8_t duty = (uint8_t)((uint16_t)255 * volume / 100);
     ledcWriteTone(LEDC_CHANNEL, freq);
+    ledcWrite(LEDC_CHANNEL, duty);
     _playing = true;
     _stopAt = millis() + durationMs;
 }
 
+void BuzzerManager::stop() {
+    if (!_ready) return;
+    ledcWriteTone(LEDC_CHANNEL, 0);
+    ledcWrite(LEDC_CHANNEL, 0);
+    _playing = false;
+}
+
 void BuzzerManager::update() {
     if (_playing && millis() >= _stopAt) {
-        ledcWriteTone(LEDC_CHANNEL, 0);
-        _playing = false;
+        stop();
     }
 }

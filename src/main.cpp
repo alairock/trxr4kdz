@@ -10,6 +10,9 @@
 #include "ButtonManager.h"
 #include "SettingsMenu.h"
 #include "WeatherService.h"
+#include "MqttManager.h"
+#include "AlarmManager.h"
+#include "OvertakeManager.h"
 
 ConfigManager configManager;
 BuzzerManager buzzerManager;
@@ -20,6 +23,9 @@ ScreenManager screenManager;
 ButtonManager buttonManager;
 SettingsMenu settingsMenu;
 WeatherService weatherService;
+MqttManager mqttManager;
+AlarmManager alarmManager;
+OvertakeManager overtakeManager;
 
 bool buzzerInitDone = false;
 bool screensStarted = false;
@@ -34,6 +40,11 @@ String bootIP;
 bool bootIPScrolling = false;
 int16_t bootIPScrollX = MATRIX_WIDTH;
 unsigned long bootIPLastStep = 0;
+
+// Fallback when no enabled screens: scroll config URL
+String noScreenUrl;
+int16_t noScreenScrollX = MATRIX_WIDTH;
+unsigned long noScreenLastStep = 0;
 
 void setup() {
     // Silence buzzer ASAP — GPIO 15 floats high during flash/reset
@@ -69,10 +80,17 @@ void setup() {
     buttonManager.begin();
 
     // Init settings menu
-    settingsMenu.begin(displayManager, screenManager);
+    settingsMenu.begin(displayManager, screenManager, wifiManager);
 
     // Start HTTP server (with screen manager)
-    webServerManager.begin(configManager, wifiManager, displayManager, screenManager, &weatherService);
+    webServerManager.begin(configManager, wifiManager, displayManager, screenManager, &weatherService, &alarmManager, &overtakeManager);
+
+    // MQTT bridge (canvas updates via MQTT topics)
+    mqttManager.begin(configManager, screenManager, overtakeManager);
+
+    // Alarm scheduler/renderer (global feature)
+    alarmManager.begin(configManager, buzzerManager);
+    overtakeManager.begin(buzzerManager, screenManager);
 
     Serial.println("=== Boot complete ===");
 }
@@ -136,6 +154,8 @@ void loop() {
     wifiManager.update();
     webServerManager.update();
     weatherService.update();
+    mqttManager.update();
+    alarmManager.update();
     buttonManager.update();
 
     // Read button events
@@ -143,7 +163,21 @@ void loop() {
     ButtonEvent rightEvt = buttonManager.getRightEvent();
     ButtonEvent middleEvt = buttonManager.getMiddleEvent();
 
-    if (settingsMenu.isActive()) {
+    if (alarmManager.isAlarming()) {
+        // Alarm overrides: single middle = snooze, double middle = dismiss until next schedule
+        if (middleEvt == ButtonEvent::SHORT_PRESS) {
+            alarmManager.snooze();
+        } else if (middleEvt == ButtonEvent::DOUBLE_PRESS) {
+            alarmManager.dismissUntilNextSchedule();
+        }
+    } else if (overtakeManager.isActive()) {
+        // Adhoc overtake overrides: single middle = stop audio only, double = clear takeover
+        if (middleEvt == ButtonEvent::SHORT_PRESS) {
+            overtakeManager.stopSound();
+        } else if (middleEvt == ButtonEvent::DOUBLE_PRESS) {
+            overtakeManager.clear();
+        }
+    } else if (settingsMenu.isActive()) {
         // Settings menu handles all input
         settingsMenu.update(leftEvt, rightEvt, middleEvt);
     } else {
@@ -161,8 +195,9 @@ void loop() {
             statusFlashUntil = millis() + 1200;
         }
 
-        // Left/Right scrub only when paused
-        if (!screenManager.isCycling() && screensStarted) {
+        // Left/Right scrub always (both playing and paused).
+        // nextScreen/prevScreen reset switch timer, so duration restarts on the new screen.
+        if (screensStarted) {
             if (leftEvt == ButtonEvent::SHORT_PRESS) {
                 screenManager.prevScreen();
             }
@@ -172,10 +207,47 @@ void loop() {
         }
     }
 
-    if (screensStarted && !settingsMenu.isActive()) {
+    overtakeManager.update();
+
+    if (alarmManager.isAlarming()) {
+        alarmManager.render(displayManager, millis());
+    } else if (overtakeManager.isActive()) {
+        overtakeManager.render(displayManager);
+    } else if (screensStarted && !settingsMenu.isActive()) {
         if (statusFlashUntil > millis()) {
             displayManager.showSmallRainbow(statusFlashText);
+        } else if (screenManager.getActiveScreen() == nullptr) {
+            unsigned long now = millis();
+            if (noScreenUrl.length() == 0 || (now % 5000) < 60) {
+                noScreenUrl = "http://" + (wifiManager.isSTAConnected() ? wifiManager.getSTAIP() : wifiManager.getAPIP());
+            }
+            if (now - noScreenLastStep >= 50) {
+                noScreenLastStep = now;
+                displayManager.clear();
+                int16_t ty = (8 - DisplayManager::fontHeight(1)) / 2;
+                uint8_t charW = DisplayManager::fontCharWidth(1);
+                uint8_t hueStep = 256 / max((int)noScreenUrl.length(), 1);
+                uint8_t hueOffset = (now / 10) & 0xFF;
+                int16_t cx = noScreenScrollX;
+                for (unsigned int i = 0; i < noScreenUrl.length(); i++) {
+                    CRGB c = CHSV(hueOffset + i * hueStep, 255, 255);
+                    uint16_t color = DisplayManager::rgb565(c.r, c.g, c.b);
+                    char ch[2] = { noScreenUrl[i], 0 };
+                    displayManager.drawFontText(cx, ty, ch, color, 1);
+                    cx += (noScreenUrl[i] == '.' || noScreenUrl[i] == ':') ? 2 : charW;
+                }
+                displayManager.show();
+                noScreenScrollX--;
+
+                int16_t textW = 0;
+                for (unsigned int i = 0; i < noScreenUrl.length(); i++)
+                    textW += (noScreenUrl[i] == '.' || noScreenUrl[i] == ':') ? 2 : charW;
+                if (noScreenScrollX < -textW) noScreenScrollX = MATRIX_WIDTH;
+            }
         } else {
+            // Reset fallback scroller when a screen is active again
+            noScreenScrollX = MATRIX_WIDTH;
+            noScreenLastStep = millis();
             screenManager.update();
         }
     }

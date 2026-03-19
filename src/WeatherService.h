@@ -17,6 +17,8 @@ public:
     // Data
     float getTemperatureF() const;
     float getHumidity() const;
+    int getWeatherCode() const;
+    float getWindMph() const;
     bool hasData() const;
     bool isOnline() const;
     bool hasGeocode() const;
@@ -60,6 +62,8 @@ private:
         float lon = 0;
         float tempF = 0;
         float humidity = 0;
+        int weatherCode = -1;
+        float windMph = 0;
         String error;
         unsigned long latencyMs = 0;
     };
@@ -70,7 +74,7 @@ private:
     void updateStateMachine(unsigned long now);
 
     bool doGeocode(String& errOut, float& latOut, float& lonOut);
-    bool doFetch(String& errOut, float& tempOut, float& humidityOut);
+    bool doFetch(String& errOut, float& tempOut, float& humidityOut, int& weatherCodeOut, float& windMphOut);
 
     static void workerTaskEntry(void* arg);
     void workerTaskLoop();
@@ -82,6 +86,8 @@ private:
 
     float _tempF = 0;
     float _humidity = 0;
+    int _weatherCode = -1;
+    float _windMph = 0;
     bool _hasData = false;
     bool _online = false;
 
@@ -120,7 +126,7 @@ private:
 
     static const unsigned long FETCH_INTERVAL = 300000;         // 5 min
     static const unsigned long SENSOR_INTERVAL = 10000;         // 10 sec
-    static const unsigned long NET_OP_TIMEOUT = 5000;           // hard cap per op
+    static const unsigned long NET_OP_TIMEOUT = 8000;           // hard cap per op (more tolerant on slow TLS/API)
     static const unsigned long NET_BASE_BACKOFF = 15000;        // 15s
     static const unsigned long NET_MAX_BACKOFF = 300000;        // 5 min
     static const unsigned long GEOCODE_RETRY_MIN = 30000;       // 30s

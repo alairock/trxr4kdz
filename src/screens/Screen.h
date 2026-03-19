@@ -12,6 +12,7 @@ enum class ScreenType : uint8_t {
     CRYPTO,
     TEXT_TICKER,
     CANVAS,
+    BATTERY,
     CUSTOM
 };
 

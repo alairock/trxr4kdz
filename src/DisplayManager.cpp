@@ -195,3 +195,10 @@ uint16_t DisplayManager::hexToColor(const String& hex) {
     uint8_t b = val & 0xFF;
     return rgb565(r, g, b);
 }
+
+uint16_t DisplayManager::getPixelColor565(int16_t x, int16_t y) const {
+    if (x < 0 || x >= MATRIX_WIDTH || y < 0 || y >= MATRIX_HEIGHT) return 0x0000;
+    int idx = y * MATRIX_WIDTH + ((y & 1) ? (MATRIX_WIDTH - 1 - x) : x); // ROWS + ZIGZAG
+    const CRGB& c = _leds[idx];
+    return rgb565(c.r, c.g, c.b);
+}

@@ -38,6 +38,8 @@ public:
 
     static uint16_t rgb565(uint8_t r, uint8_t g, uint8_t b);
     static uint16_t hexToColor(const String& hex);
+    uint16_t getPixelColor565(int16_t x, int16_t y) const;
+    CRGB* rawLeds() { return _leds; }
 
 private:
     CRGB _leds[NUM_LEDS];

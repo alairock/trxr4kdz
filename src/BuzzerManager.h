@@ -7,7 +7,8 @@ class BuzzerManager {
 public:
     void begin();
     void ready();
-    void beep(uint16_t freq = 1000, uint16_t durationMs = 150);
+    void beep(uint16_t freq = 1000, uint16_t durationMs = 150, uint8_t volume = 100);
+    void stop();
     void update();
 
 private:

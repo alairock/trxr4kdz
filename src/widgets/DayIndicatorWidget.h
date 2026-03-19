@@ -10,4 +10,5 @@ public:
 
     uint16_t activeColor = 0x07E0;  // green
     uint16_t inactiveColor = 0x4208; // dark gray
+    bool weekStartsMonday = true;    // true: Mon..Sun, false: Sun..Sat
 };
