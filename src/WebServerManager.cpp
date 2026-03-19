@@ -101,13 +101,33 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:#6eb0ff;box-sh
 .hint{font-size:12px;opacity:.82}
 .hidden{display:none}
 </style></head><body>
-<div class="wrap"><aside class="side"><h1>trxr4kdz</h1><button id="tabConfig" class="active">Config</button><button id="tabScreens">Screens</button><button id="tabMqtt">MQTT</button><button id="tabAlarm">Alarm</button><button id="tabFirmware">Firmware</button><button id="tabNotifications">Notifications</button><button id="tabSettings">Settings</button><div class="bottom"><button id="tabButtons">Buttons</button><button onclick="location.href='/'">Back</button><button onclick="window.open('https://github.com/alairock/trxr4kdz','_blank','noopener,noreferrer')">GitHub</button></div></aside>
+<div class="wrap"><aside class="side"><h1>trxr4kdz</h1><button id="tabConfig" class="active">Config</button><button id="tabWifi">WiFi</button><button id="tabScreens">Screens</button><button id="tabMqtt">MQTT</button><button id="tabAlarm">Alarm</button><button id="tabFirmware">Firmware</button><button id="tabNotifications">Notifications</button><button id="tabSettings">Settings</button><div class="bottom"><button id="tabButtons">Buttons</button><button onclick="window.open('https://github.com/alairock/trxr4kdz','_blank','noopener,noreferrer')">GitHub</button></div></aside>
 <main class="main">
 <section id="pConfig" class="page active">
   <div class="card"><h3>Global Config</h3>
     <div class="row"><label class="field">Hostname<input id="hostname"></label><label class="field">Brightness<input id="brightness" type="number" min="0" max="255"></label><label class="field">Zip<input id="zip"></label></div>
     <div class="row"><button class="btn" onclick="loadCfg()">Reload</button><button class="btn primary" onclick="saveCfg()">Save</button></div>
     <p id="cfgMsg" class="hint"></p>
+  </div>
+</section>
+
+<section id="pWifi" class="page">
+  <div class="card"><h3>WiFi</h3>
+    <div class="row">
+      <label class="field">SSID <input id="wifiSsid" placeholder="Network name"></label>
+      <label class="field">Password <input id="wifiPass" type="password" placeholder="WiFi password"></label>
+    </div>
+    <div class="row">
+      <button class="btn" id="wifiScanBtn">Scan Networks</button>
+      <button class="btn primary" id="wifiSaveBtn">Save WiFi + Reconnect</button>
+      <span class="hint" id="wifiStatus"></span>
+    </div>
+    <div class="row">
+      <label class="field">Nearby SSIDs
+        <select id="wifiScanResults" size="8"></select>
+      </label>
+    </div>
+    <div class="hint">Selecting an SSID fills the SSID field. Saving reboots device to reconnect.</div>
   </div>
 </section>
 
@@ -301,6 +321,7 @@ async function withBusy(btn,label,fn){
 
 function show(tab){
   tabConfig.classList.toggle('active',tab==='config');
+  tabWifi.classList.toggle('active',tab==='wifi');
   tabScreens.classList.toggle('active',tab==='screens');
   tabMqtt.classList.toggle('active',tab==='mqtt');
   tabAlarm.classList.toggle('active',tab==='alarm');
@@ -309,6 +330,7 @@ function show(tab){
   tabSettings.classList.toggle('active',tab==='settings');
   tabButtons.classList.toggle('active',tab==='buttons');
   pConfig.classList.toggle('active',tab==='config');
+  pWifi.classList.toggle('active',tab==='wifi');
   pScreens.classList.toggle('active',tab==='screens');
   pMqtt.classList.toggle('active',tab==='mqtt');
   pAlarm.classList.toggle('active',tab==='alarm');
@@ -318,6 +340,7 @@ function show(tab){
   pButtons.classList.toggle('active',tab==='buttons');
 }
 tabConfig.onclick=()=>show('config');
+tabWifi.onclick=()=>{show('wifi');loadWifiTab();};
 tabScreens.onclick=()=>{show('screens');loadScreens();};
 tabMqtt.onclick=()=>{show('mqtt');loadMqtt();};
 tabAlarm.onclick=()=>{show('alarm');loadAlarm();};
@@ -569,6 +592,56 @@ alarmSave.onclick=async()=>{
     loadAlarm();
   } catch(e){ toast('Alarm save failed: '+e.message,'err'); }
 };
+
+async function loadWifiTab(){
+  try {
+    const c = await j('/api/config');
+    wifiSsid.value = c.wifi_ssid || '';
+    wifiPass.value = '';
+    wifiStatus.textContent = '';
+  } catch(e) {
+    wifiStatus.textContent = 'Load failed';
+  }
+}
+
+wifiScanResults?.addEventListener('change', ()=>{
+  const v = wifiScanResults.value || '';
+  if (v) wifiSsid.value = v;
+});
+
+wifiScanBtn?.addEventListener('click', async()=>{
+  try {
+    wifiStatus.textContent = 'Scanning...';
+    const d = await j('/api/wifi/scan');
+    const nets = d.networks || [];
+    wifiScanResults.innerHTML = '';
+    nets.forEach(n=>{
+      const o=document.createElement('option');
+      o.value=n.ssid;
+      o.textContent=`${n.ssid} (${n.rssi} dBm${n.secure?', secure':''})`;
+      wifiScanResults.appendChild(o);
+    });
+    wifiStatus.textContent = `Found ${nets.length} networks`;
+  } catch(e){
+    wifiStatus.textContent = 'Scan failed';
+    toast('WiFi scan failed: '+e.message,'err');
+  }
+});
+
+wifiSaveBtn?.addEventListener('click', async()=>{
+  try {
+    const ssid = (wifiSsid.value||'').trim();
+    if(!ssid) throw new Error('SSID required');
+    wifiStatus.textContent = 'Saving...';
+    const r = await fetch('/api/wifi',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ssid,password:wifiPass.value||''})});
+    if(!r.ok) throw new Error(await r.text());
+    wifiStatus.textContent = 'Saved. Reconnecting...';
+    toast('WiFi saved. Device restarting.','ok');
+  } catch(e){
+    wifiStatus.textContent = 'Save failed';
+    toast('WiFi save failed: '+e.message,'err');
+  }
+});
 
 async function loadMqtt(){
   const c = await j('/api/config');
@@ -1938,6 +2011,7 @@ void WebServerManager::begin(ConfigManager& config, WiFiManager& wifi, DisplayMa
     _server.on("/api/config", HTTP_GET, [this]() { handleGetConfig(); });
     _server.on("/api/config", HTTP_POST, [this]() { handlePostConfig(); });
     _server.on("/api/wifi", HTTP_POST, [this]() { handlePostWifi(); });
+    _server.on("/api/wifi/scan", HTTP_GET, [this]() { handleWifiScan(); });
     _server.on("/api/update", HTTP_POST,
         [this]() { handleUpdate(); },
         [this]() { handleUpdateUpload(); }
@@ -2634,6 +2708,29 @@ void WebServerManager::handlePostWifi() {
     _server.send(200, "application/json", "{\"status\":\"connecting\"}");
     _display->showSmallRainbow("WiFi...");
     scheduleRestart(1000);
+}
+
+void WebServerManager::handleWifiScan() {
+    if (!requireAuth()) return;
+
+    int n = WiFi.scanNetworks(false, true);
+    JsonDocument out;
+    JsonArray arr = out["networks"].to<JsonArray>();
+
+    for (int i = 0; i < n; i++) {
+        String ssid = WiFi.SSID(i);
+        if (ssid.length() == 0) continue;
+        JsonObject o = arr.add<JsonObject>();
+        o["ssid"] = ssid;
+        o["rssi"] = WiFi.RSSI(i);
+        o["channel"] = WiFi.channel(i);
+        o["secure"] = (WiFi.encryptionType(i) != WIFI_AUTH_OPEN);
+    }
+
+    WiFi.scanDelete();
+    String json;
+    serializeJson(out, json);
+    _server.send(200, "application/json", json);
 }
 
 void WebServerManager::handleUpdate() {

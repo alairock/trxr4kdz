@@ -35,6 +35,7 @@ private:
     void handleGetConfig();
     void handlePostConfig();
     void handlePostWifi();
+    void handleWifiScan();
     void handleUpdate();
     void handleUpdateUpload();
 
