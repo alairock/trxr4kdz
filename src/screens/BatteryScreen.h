@@ -14,7 +14,7 @@ public:
 private:
     uint8_t readBatteryPercent() const;
 
-    // AWTRIX-compatible calibration defaults
+    // Battery calibration defaults (TC001 baseline)
     uint16_t _minRaw = 475;
     uint16_t _maxRaw = 665;
 

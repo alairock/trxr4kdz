@@ -135,7 +135,7 @@ void CanvasScreen::renderEffectFrame(uint16_t* out, unsigned long now) {
     float speedMul = 0.03f + speedNorm * speedNorm * 3.2f; // 0.03..3.23
     uint32_t t = (uint32_t)(now * speedMul);
 
-    // AWTRIX-like quick ports tuned for 32x8
+    // Legacy effect ports tuned for 32x8
     if (_effectType == "swirl_in" || _effectType == "swirl_out" || _effectType == "siwrl_out" || _effectType == "siwrlout") {
         float cx = 16.0f, cy = 4.0f;
         for (int y = 0; y < 8; y++) {

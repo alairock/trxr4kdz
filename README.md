@@ -99,18 +99,13 @@ curl -X POST http://<device-ip>/api/update \
 
 ---
 
-## 2) Authentication
+## 2) Endpoint Protection Status
 
-Protected endpoints require auth **if** `api_token` is configured.
+Current deployed behavior in this project should be treated as **not protected by default** for user docs.
 
-Use either:
+**TODO:** add/verify consistent endpoint protection and then document the final auth contract.
 
-- Header: `X-API-Key: <token>`
-- Query: `?token=<token>`
-
-Unauthorized response:
-
-- **401** `{"error":"unauthorized"}`
+For now, API examples below intentionally omit auth headers.
 
 ---
 
@@ -125,7 +120,7 @@ Base URL: `http://<device-ip>`
 ## 3.1 Device / System
 
 ### GET `/api/status`  
-Auth: **No**
+Access: **Open**
 
 Returns runtime/system health.
 
@@ -159,7 +154,7 @@ Returns runtime/system health.
 ---
 
 ### GET `/api/config`  
-Auth: **Yes**
+Access: **Currently open (TODO: enforce auth)**
 
 Returns current config (secrets masked/flagged).
 
@@ -184,7 +179,7 @@ Returns current config (secrets masked/flagged).
 ---
 
 ### POST `/api/config`  
-Auth: **Yes**
+Access: **Currently open (TODO: enforce auth)**
 
 Patch/update config fields.
 
@@ -212,7 +207,7 @@ Patch/update config fields.
 ---
 
 ### POST `/api/wifi`  
-Auth: **Yes**
+Access: **Currently open (TODO: enforce auth)**
 
 Save STA credentials and schedule restart.
 
@@ -233,7 +228,7 @@ Save STA credentials and schedule restart.
 ---
 
 ### POST `/api/update`  
-Auth: **Yes**
+Access: **Currently open (TODO: enforce auth)**
 
 OTA update upload.
 
@@ -247,7 +242,7 @@ OTA update upload.
 ---
 
 ### GET `/api/weather/debug`  
-Auth: **No**
+Access: **Open**
 
 Detailed weather diagnostics.
 
@@ -269,7 +264,7 @@ Detailed weather diagnostics.
 ## 3.2 MQTT
 
 ### GET `/api/mqtt/status`  
-Auth: **Yes**
+Access: **Currently open (TODO: enforce auth)**
 
 **200 sample**
 ```json
@@ -291,7 +286,7 @@ Auth: **Yes**
 ## 3.3 Alarm
 
 ### GET `/api/alarm`  
-Auth: **Yes**
+Access: **Currently open (TODO: enforce auth)**
 
 **200 sample**
 ```json
@@ -313,7 +308,7 @@ Auth: **Yes**
 ```
 
 ### PUT `/api/alarm`  
-Auth: **Yes**
+Access: **Currently open (TODO: enforce auth)**
 
 **Request schema (all optional):**
 ```json
@@ -337,7 +332,7 @@ Auth: **Yes**
 - `400` `{"error":"invalid json"}`
 
 ### POST `/api/alarm/preview`  
-Auth: **Yes**
+Access: **Currently open (TODO: enforce auth)**
 
 **Request schema**
 ```json
@@ -354,7 +349,7 @@ Auth: **Yes**
 - `503` `{"error":"alarm unavailable"}`
 
 ### POST `/api/alarm/trigger`  
-Auth: **Yes**
+Access: **Currently open (TODO: enforce auth)**
 
 **Responses**
 - `200` `{"status":"ok"}`
@@ -390,7 +385,7 @@ Auth: **Yes**
 ```
 
 ### GET `/api/screens`  
-Auth: **No**
+Access: **Open**
 
 **200 sample**
 ```json
@@ -404,14 +399,14 @@ Auth: **No**
 ```
 
 ### GET `/api/screens/{id}`  
-Auth: **No**
+Access: **Open**
 
 **Responses**
 - `200` detailed screen object
 - `404` `{"error":"screen not found"}`
 
 ### POST `/api/screens`  
-Auth: **Yes**
+Access: **Currently open (TODO: enforce auth)**
 
 Create a screen.
 
@@ -434,7 +429,7 @@ Create a screen.
 - `500` `{"error":"max screens reached"}`
 
 ### PUT `/api/screens/{id}`  
-Auth: **Yes**
+Access: **Currently open (TODO: enforce auth)**
 
 Patch fields on existing screen.
 
@@ -454,26 +449,26 @@ Patch fields on existing screen.
 - `404` `{"error":"screen not found"}`
 
 ### DELETE `/api/screens/{id}`  
-Auth: **Yes**
+Access: **Currently open (TODO: enforce auth)**
 
 **Responses**
 - `200` `{"status":"deleted"}`
 - `404` `{"error":"screen not found"}`
 
 ### POST `/api/screens/{id}/enable`  
-Auth: **Yes**
+Access: **Currently open (TODO: enforce auth)**
 
 - `200` `{"status":"enabled"}`
 - `404` `{"error":"screen not found"}`
 
 ### POST `/api/screens/{id}/disable`  
-Auth: **Yes**
+Access: **Currently open (TODO: enforce auth)**
 
 - `200` `{"status":"disabled"}`
 - `404` `{"error":"screen not found"}`
 
 ### POST `/api/screens/reorder`  
-Auth: **Yes**
+Access: **Currently open (TODO: enforce auth)**
 
 **Request schema**
 ```json
@@ -489,13 +484,13 @@ Auth: **Yes**
 - `400` `{"error":"order array required"}`
 
 ### POST `/api/screens/next`  
-Auth: **Yes**
+Access: **Currently open (TODO: enforce auth)**
 
 **Responses**
 - `200` `{"status":"ok"}`
 
 ### PUT `/api/screens/cycling`  
-Auth: **Yes**
+Access: **Currently open (TODO: enforce auth)**
 
 **Request schema**
 ```json
@@ -508,7 +503,7 @@ Auth: **Yes**
 - `400` `{"error":"invalid json"}`
 
 ### GET `/api/screens/defaults`  
-Auth: **No**
+Access: **Open**
 
 **200 sample**
 ```json
@@ -521,7 +516,7 @@ Auth: **No**
 ```
 
 ### PUT `/api/screens/defaults`  
-Auth: **Yes**
+Access: **Currently open (TODO: enforce auth)**
 
 **Request schema (all optional):**
 ```json
@@ -545,7 +540,7 @@ Auth: **Yes**
 `{id}` must refer to a screen with `type: "canvas"`.
 
 ### POST `/api/canvas/{id}`  
-Auth: **Yes**
+Access: **Currently open (TODO: enforce auth)**
 
 Push full frame payload.
 
@@ -562,9 +557,9 @@ Push full frame payload.
 - `404` `{"error":"canvas screen not found"}`
 
 ### POST `/api/canvas/{id}/draw`  
-Auth: **Yes**
+Access: **Currently open (TODO: enforce auth)**
 
-AWTRIX-style drawing commands.
+Canvas drawing commands (TRXR4KDZ draw schema).
 
 **Request schema (any subset):**
 ```json
@@ -583,7 +578,7 @@ AWTRIX-style drawing commands.
 - `404` `{"error":"canvas screen not found"}`
 
 ### GET `/api/canvas/{id}/frame`  
-Auth: **Yes**
+Access: **Currently open (TODO: enforce auth)**
 
 Returns current composed frame (effect layer + canvas layer).
 
@@ -604,7 +599,7 @@ Returns current composed frame (effect layer + canvas layer).
 ## 3.6 Preview / Icons / Overtake
 
 ### POST `/api/preview`  
-Auth: **Yes**
+Access: **Currently open (TODO: enforce auth)**
 
 Render a temporary preview frame for a screen type.
 
@@ -625,7 +620,7 @@ Render a temporary preview frame for a screen type.
 - `400` `{"error":"unsupported preview type"}`
 
 ### GET `/api/lametric/search?q=<query>&limit=<1..50>`  
-Auth: **Yes**
+Access: **Currently open (TODO: enforce auth)**
 
 **200 sample**
 ```json
@@ -642,7 +637,7 @@ Errors:
 - `500` `{"error":"lametric parse failed"}`
 
 ### GET `/api/lametric/icon?id=<id>&fmt=gif|png`  
-Auth: **Yes**
+Access: **Currently open (TODO: enforce auth)**
 
 Returns binary image data.
 
@@ -653,13 +648,13 @@ Responses:
 - `502` `{"error":"lametric icon fetch failed"}`
 
 ### POST `/api/overtake/mute`  
-Auth: **Yes**
+Access: **Currently open (TODO: enforce auth)**
 
 - `200` `{"status":"muted"}`
 - `503` `{"error":"overtake unavailable"}`
 
 ### POST `/api/overtake/clear`  
-Auth: **Yes**
+Access: **Currently open (TODO: enforce auth)**
 
 - `200` `{"status":"cleared"}`
 - `503` `{"error":"overtake unavailable"}`
@@ -672,18 +667,15 @@ Auth: **Yes**
 # Status (no auth)
 curl http://<ip>/api/status
 
-# Read config (auth)
-curl -H "X-API-Key: <token>" http://<ip>/api/config
+curl http://<ip>/api/config
 
 # Pause screen cycling
 curl -X PUT http://<ip>/api/screens/cycling \
-  -H "X-API-Key: <token>" \
   -H "Content-Type: application/json" \
   -d '{"enabled":false}'
 
 # Draw one pixel on canvas-1
 curl -X POST http://<ip>/api/canvas/canvas-1/draw \
-  -H "X-API-Key: <token>" \
   -H "Content-Type: application/json" \
   -d '{"dp":[[0,0,"#00FF00"]]}'
 ```
@@ -706,4 +698,4 @@ curl -X POST http://<ip>/api/canvas/canvas-1/draw \
 
 - Version is currently reported as `0.1.0` by `/api/status`.
 - Some UI-only behavior (like export/import helper flow) composes multiple API calls; endpoints above are the underlying contract.
-- If auth is enabled and requests fail, confirm `X-API-Key` token first.
+- TODO: document final auth usage once endpoint protection policy is finalized.
