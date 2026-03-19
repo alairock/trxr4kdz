@@ -100,7 +100,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:#6eb0ff;box-sh
 .hint{font-size:12px;opacity:.82}
 .hidden{display:none}
 </style></head><body>
-<div class="wrap"><aside class="side"><h1>trxr4kdz</h1><button id="tabConfig" class="active">Config</button><button id="tabScreens">Screens</button><button id="tabMqtt">MQTT</button><button id="tabAlarm">Alarm</button><button id="tabFirmware">Firmware</button><button id="tabSettings">Settings</button><button onclick="location.href='/'">Back</button></aside>
+<div class="wrap"><aside class="side"><h1>trxr4kdz</h1><button id="tabConfig" class="active">Config</button><button id="tabScreens">Screens</button><button id="tabMqtt">MQTT</button><button id="tabAlarm">Alarm</button><button id="tabFirmware">Firmware</button><button id="tabSettings">Settings</button><a class="btn" href="https://github.com/alairock/trxr4kdz" target="_blank" rel="noopener noreferrer" style="text-align:center;text-decoration:none">GitHub</a><button onclick="location.href='/'">Back</button></aside>
 <main class="main">
 <section id="pConfig" class="page active">
   <div class="card"><h3>Global Config</h3>

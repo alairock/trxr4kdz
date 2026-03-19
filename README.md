@@ -14,45 +14,88 @@ Custom ESP32 firmware for the **Ulanzi TC001** (32x8 WS2812B matrix) with:
 
 ## 1) Getting Started
 
-## Prerequisites
+### 1A) Getting started as a **user** (just flashed firmware)
+
+This path is for people who want to run the firmware, not develop it.
+
+#### Step 1: Flash TRXR4KDZ firmware
+
+You can get onto TRXR4KDZ from either stock Ulanzi firmware or AWTRIX 3.
+
+**From AWTRIX 3 (OTA/Web update):**
+- Open the AWTRIX update page.
+- Upload `firmware.bin` built from this repo.
+- If AWTRIX endpoint is exposed, direct update is also typically:
+  - `POST /update` with multipart field `update`.
+
+**From stock Ulanzi firmware:**
+- If stock OTA accepts app image, upload the same `firmware.bin`.
+- If OTA path fails, use serial/USB once:
+  - `pio run -e ulanzi -t upload`
+
+#### Step 2: Connect to AP mode and configure Wi-Fi
+
+After boot, device starts AP mode (always available, also when STA is connected):
+
+- **AP SSID format:** `Ulanzi-XXXX` (last MAC bytes)
+- **Default AP password:** `12345678`
+- **AP IP:** `192.168.4.1`
+
+Connect your phone/laptop to that AP, then open:
+
+- `http://192.168.4.1/` (captive/setup page)
+
+Enter your Wi-Fi credentials and save. Device reboots and joins STA.
+
+#### Step 3: Open the UI
+
+Once connected to your Wi-Fi, open:
+
+- `http://<device-ip>/ui`
+
+Tip: `GET /api/status` returns `sta_ip`, `sta_connected`, and health.
+
+---
+
+### 1B) Getting started as a **hacker/contributor**
+
+#### Prerequisites
 
 - Python 3
 - [PlatformIO](https://platformio.org/)
-- Ulanzi TC001 connected via USB (for first flash)
+- Ulanzi TC001 connected over USB for dev flashing
 
-## Clone + build
+#### Clone + build
 
 ```bash
 git clone https://github.com/alairock/trxr4kdz.git
 cd trxr4kdz
 
-# If using project venv (recommended in this repo)
+# project-venv pio (recommended in this repo)
 .venv/bin/pio run -e ulanzi
 ```
 
-If you installed PlatformIO globally, use `pio ...` instead of `.venv/bin/pio ...`.
+If using global PlatformIO, replace `.venv/bin/pio` with `pio`.
 
-## First flash (USB serial)
+#### Flash (serial)
 
 ```bash
-# Firmware
+# firmware
 .venv/bin/pio run -e ulanzi -t upload
 
-# (Optional) LittleFS content
+# optional LittleFS
 .venv/bin/pio run -e ulanzi -t uploadfs
+
+# serial monitor
+.venv/bin/pio device monitor
 ```
 
-## OTA flash (after device is on Wi-Fi)
+#### Flash (OTA)
 
 ```bash
 curl -X POST http://<device-ip>/api/update \
   -F "firmware=@.pio/build/ulanzi/firmware.bin"
 ```
-
-## Open web UI
-
-- Captive/setup page: `http://<device-ip>/`
-- Full UI: `http://<device-ip>/ui`
 
 ---
 
