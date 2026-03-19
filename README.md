@@ -1,258 +1,666 @@
 # TRXR4KDZ — Custom Firmware for Ulanzi TC001
 
-Custom ESP32 firmware for the **Ulanzi TC001** desktop LED matrix (32x8 WS2812B pixels).
+Custom ESP32 firmware for the **Ulanzi TC001** (32x8 WS2812B matrix) with:
 
-Current shipped firmware line includes:
-- Modular screen system with persisted ordering
-- Auto-cycling with API + button play/pause controls
-- Screen defaults API (`/api/screens/defaults`) persisted in `screens.json`
-- Canvas push/draw APIs
+- Modular screen system (clock, binary, weather, ticker, canvas, battery)
+- Screen ordering + cycling control
+- Canvas API (raw frame + draw commands)
+- Alarm API
+- MQTT status + config
 - OTA update endpoint
-- NTP time sync + weather service integration
-- Non-blocking weather network worker with timeout/backoff state machine
+- Built-in web UI (`/ui`)
 
-## Hardware
+---
 
-- **MCU**: ESP32-D0WD (240MHz dual-core, 320KB RAM, 4MB flash)
-- **Display**: 32x8 WS2812B LED matrix (zigzag row layout)
-- **Buzzer**: Piezo on GPIO 15 (strapping pin — may whine during serial flash)
-- **Buttons**: Up (GPIO 26), Down (GPIO 14), Select (GPIO 27)
-- **Sensors**: LDR (GPIO 35), Battery (GPIO 34)
-- **I2C**: SCL (GPIO 22), SDA (GPIO 21)
+## 1) Getting Started
 
-## Building & Flashing
+## Prerequisites
 
-Requires [PlatformIO](https://platformio.org/).
+- Python 3
+- [PlatformIO](https://platformio.org/)
+- Ulanzi TC001 connected via USB (for first flash)
+
+## Clone + build
 
 ```bash
-# Build
-pio run
+git clone https://github.com/alairock/trxr4kdz.git
+cd trxr4kdz
 
-# Flash firmware via serial
-pio run -t upload
-
-# Flash filesystem (LittleFS) via serial
-pio run -t uploadfs
-
-# OTA firmware update (device must be on network)
-curl -X POST http://<device-ip>/api/update -F "firmware=@.pio/build/ulanzi/firmware.bin"
-
-# Serial monitor
-pio device monitor
+# If using project venv (recommended in this repo)
+.venv/bin/pio run -e ulanzi
 ```
 
-## Boot Sequence (current behavior)
+If you installed PlatformIO globally, use `pio ...` instead of `.venv/bin/pio ...`.
 
-1. GPIO 15 forced LOW (silence buzzer), serial + config init
-2. Display starts with `BOOT`
-3. Wi-Fi starts (AP always, STA if configured)
-4. Weather service + HTTP server start
-5. ~2s: buzzer beep + IP scroll
-6. After IP scroll: screen manager starts and cycling begins
+## First flash (USB serial)
 
-## Screen System
+```bash
+# Firmware
+.venv/bin/pio run -e ulanzi -t upload
 
-### Supported screen types
+# (Optional) LittleFS content
+.venv/bin/pio run -e ulanzi -t uploadfs
+```
 
-- `clock`
-- `binary_clock`
-- `text_ticker`
-- `canvas`
-- `weather`
-- `battery`
+## OTA flash (after device is on Wi-Fi)
 
-### Common screen fields
+```bash
+curl -X POST http://<device-ip>/api/update \
+  -F "firmware=@.pio/build/ulanzi/firmware.bin"
+```
 
-Each screen object uses:
-- `id` (string)
-- `type` (string)
-- `enabled` (bool)
-- `duration` (seconds)
-- `order` (int)
-- `settings` (object, type-specific)
+## Open web UI
 
-`duration: 0` means no auto-advance while that screen is active.
+- Captive/setup page: `http://<device-ip>/`
+- Full UI: `http://<device-ip>/ui`
 
-### Global screen state
+---
 
-Persisted in `/screens.json`:
-- `cycling` (global play/pause state)
-- `defaults` (applied when creating new screens)
-- `screens` array
+## 2) Authentication
 
-### Defaults API behavior (important)
+Protected endpoints require auth **if** `api_token` is configured.
 
-`/api/screens/defaults` controls global defaults:
-- `use24h` (bool)
-- `timezone` (POSIX TZ string)
-- `font` (uint8)
-- `defaultColor` (`#RRGGBB`)
+Use either:
 
-Semantics:
-- Updating defaults affects **newly created** screens.
-- Existing screens keep their current settings unless explicitly updated.
-- Defaults are persisted to `/screens.json` and survive reboot.
+- Header: `X-API-Key: <token>`
+- Query: `?token=<token>`
 
-### Physical button controls (screen playback)
+Unauthorized response:
 
-- **Select double-press**: toggle cycling play/pause
-- **Up/Down short press**: previous/next screen **only when paused**
-- **Select long-press**: open settings menu
+- **401** `{"error":"unauthorized"}`
 
-## REST API
+---
+
+## 3) API Documentation
 
 Base URL: `http://<device-ip>`
 
-### Authentication
+> Notes:
+> - JSON bodies use `Content-Type: application/json` unless multipart is specified.
+> - Example responses below are representative samples.
 
-If `api_token` is set in config:
-- Send `X-API-Key: <token>` header
-- Or `?token=<token>` query param
+## 3.1 Device / System
 
-If no token is configured, protected endpoints are open.
+### GET `/api/status`  
+Auth: **No**
 
-### Device endpoints
+Returns runtime/system health.
 
-| Method | Path | Auth | Notes |
-|---|---|---|---|
-| GET | `/api/status` | No | version, hostname, AP/STA IP, RSSI, heap, uptime, weather network-health summary |
-| GET | `/api/config` | Yes | returns masked passwords + `api_token_set` |
-| POST | `/api/config` | Yes | update `brightness`, `hostname`, `ap_password`, `api_token` |
-| POST | `/api/wifi` | Yes | body: `ssid` required, optional `password`; saves + restarts |
-| POST | `/api/update` | Yes | multipart form field `firmware`; OTA then restart |
-| GET | `/api/weather/debug` | No | weather service diagnostics + network state/backoff/loop timing |
+**200 sample**
+```json
+{
+  "version": "0.1.0",
+  "hostname": "ulanzi",
+  "ap_ip": "192.168.4.1",
+  "sta_ip": "192.168.0.48",
+  "sta_connected": true,
+  "rssi": -58,
+  "free_heap": 206480,
+  "uptime_s": 12,
+  "weather": {
+    "network_state": "waiting_interval",
+    "request_in_flight": false,
+    "in_flight_age_ms": 0,
+    "last_success_ms": 7020,
+    "last_failure_ms": 0,
+    "consecutive_failures": 0,
+    "backoff_ms": 0,
+    "last_op_latency_ms": 631,
+    "loop_update_us": 29,
+    "loop_update_us_max": 996,
+    "last_error": ""
+  }
+}
+```
 
-### Screen endpoints
+---
 
-| Method | Path | Auth | Behavior |
-|---|---|---|---|
-| GET | `/api/screens` | No | summary list + `cycling` + `activeScreen` |
-| GET | `/api/screens/{id}` | No | full screen including `settings` |
-| POST | `/api/screens` | Yes | create screen (`type` required) |
-| PUT | `/api/screens/{id}` | Yes | patch `enabled`, `duration`, `settings` |
-| DELETE | `/api/screens/{id}` | Yes | delete screen |
-| POST | `/api/screens/{id}/enable` | Yes | set `enabled=true` |
-| POST | `/api/screens/{id}/disable` | Yes | set `enabled=false` |
-| POST | `/api/screens/reorder` | Yes | body `{ "order": ["id1","id2",...] }` |
-| POST | `/api/screens/next` | Yes | immediate next enabled screen |
-| PUT | `/api/screens/cycling` | Yes | body `{ "enabled": true/false }` |
-| GET | `/api/screens/defaults` | No | read defaults |
-| PUT | `/api/screens/defaults` | Yes | update persisted defaults |
+### GET `/api/config`  
+Auth: **Yes**
 
-#### Screen control semantics (API)
+Returns current config (secrets masked/flagged).
 
-- `PUT /api/screens/cycling {"enabled":false}` pauses auto-rotation.
-- While paused, active screen remains until:
-  - `POST /api/screens/next`, or
-  - physical Up/Down short press.
-- `POST /api/screens/next` advances to next enabled screen and resets switch timer.
-- Reorder changes cycle order by writing each screen’s `order` then sorting.
+**200 sample**
+```json
+{
+  "wifi_ssid": "MyWiFi",
+  "wifi_password": "********",
+  "brightness": 40,
+  "hostname": "ulanzi",
+  "ap_password": "********",
+  "api_token_set": true,
+  "mqtt_enabled": true,
+  "mqtt_host": "192.168.0.10",
+  "mqtt_port": 1883,
+  "mqtt_user": "user",
+  "mqtt_password_set": true,
+  "mqtt_base_topic": "trxr4kdz"
+}
+```
 
-### Canvas endpoints
+---
 
-| Method | Path | Auth | Behavior |
-|---|---|---|---|
-| POST | `/api/canvas/{id}` | Yes | body `{ "rgb": "<hex RGB bytes>" }` |
-| POST | `/api/canvas/{id}/draw` | Yes | AWTRIX-style draw commands |
+### POST `/api/config`  
+Auth: **Yes**
 
-Draw payload keys:
-- `cl`: clear framebuffer
-- `df`: filled rects `[[x,y,w,h,"#RRGGBB"], ...]`
-- `dl`: lines `[[x0,y0,x1,y1,"#RRGGBB"], ...]`
-- `dp`: pixels `[[x,y,"#RRGGBB"], ...]`
+Patch/update config fields.
 
-## API examples
+**Request schema (all optional):**
+```json
+{
+  "brightness": 0,
+  "hostname": "string",
+  "ap_password": "string",
+  "api_token": "string",
+  "mqtt_enabled": true,
+  "mqtt_host": "string",
+  "mqtt_port": 1883,
+  "mqtt_user": "string",
+  "mqtt_password": "string",
+  "mqtt_base_topic": "string"
+}
+```
+
+**Responses**
+- `200` `{"status":"ok"}`
+- `400` `{"error":"no body"}`
+- `400` `{"error":"invalid json"}`
+
+---
+
+### POST `/api/wifi`  
+Auth: **Yes**
+
+Save STA credentials and schedule restart.
+
+**Request schema**
+```json
+{
+  "ssid": "required string",
+  "password": "optional string"
+}
+```
+
+**Responses**
+- `200` `{"status":"connecting"}`
+- `400` `{"error":"no body"}`
+- `400` `{"error":"invalid json"}`
+- `400` `{"error":"ssid required"}`
+
+---
+
+### POST `/api/update`  
+Auth: **Yes**
+
+OTA update upload.
+
+**Request**: `multipart/form-data` with field:
+- `firmware` = `.bin`
+
+**Responses**
+- `200` `{"status":"ok, restarting"}`
+- `500` `{"error":"update failed","reason":"...","code":8}`
+
+---
+
+### GET `/api/weather/debug`  
+Auth: **No**
+
+Detailed weather diagnostics.
+
+**200 sample (shape)**
+```json
+{
+  "hasData": true,
+  "online": true,
+  "tempF": 72.5,
+  "humidity": 33,
+  "weatherCode": 0,
+  "windMph": 5,
+  "zipCode": "80014"
+}
+```
+
+---
+
+## 3.2 MQTT
+
+### GET `/api/mqtt/status`  
+Auth: **Yes**
+
+**200 sample**
+```json
+{
+  "available": true,
+  "connected": true,
+  "lastState": 0,
+  "lastError": "",
+  "lastConnectMs": 123456,
+  "reconnectAttempts": 0,
+  "lastTopic": "trxr4kdz/canvas/canvas-1/draw",
+  "lastPayloadLen": 97,
+  "lastMessageMs": 123460
+}
+```
+
+---
+
+## 3.3 Alarm
+
+### GET `/api/alarm`  
+Auth: **Yes**
+
+**200 sample**
+```json
+{
+  "enabled": true,
+  "hour": 7,
+  "minute": 0,
+  "daysMask": 62,
+  "flashMode": "solid",
+  "color": "#ff0000",
+  "volume": 80,
+  "tone": "beep",
+  "snoozeMinutes": 9,
+  "timeoutMinutes": 10,
+  "alarming": false,
+  "snoozed": false,
+  "snoozeUntilMs": 0
+}
+```
+
+### PUT `/api/alarm`  
+Auth: **Yes**
+
+**Request schema (all optional):**
+```json
+{
+  "enabled": true,
+  "hour": 7,
+  "minute": 0,
+  "daysMask": 62,
+  "flashMode": "solid|pulse|off",
+  "color": "#RRGGBB",
+  "volume": 80,
+  "tone": "beep|chime|pulse",
+  "snoozeMinutes": 9,
+  "timeoutMinutes": 10
+}
+```
+
+**Responses**
+- `200` `{"status":"ok"}`
+- `400` `{"error":"no body"}`
+- `400` `{"error":"invalid json"}`
+
+### POST `/api/alarm/preview`  
+Auth: **Yes**
+
+**Request schema**
+```json
+{
+  "tone": "beep|chime|pulse",
+  "volume": 80
+}
+```
+
+**Responses**
+- `200` `{"status":"ok"}`
+- `400` `{"error":"no body"}`
+- `400` `{"error":"invalid json"}`
+- `503` `{"error":"alarm unavailable"}`
+
+### POST `/api/alarm/trigger`  
+Auth: **Yes**
+
+**Responses**
+- `200` `{"status":"ok"}`
+- `503` `{"error":"alarm unavailable"}`
+
+---
+
+## 3.4 Screen Management
+
+### Screen object (summary)
+```json
+{
+  "id": "clock-1",
+  "type": "clock",
+  "enabled": true,
+  "duration": 10,
+  "order": 0,
+  "active": true
+}
+```
+
+### Screen object (detail)
+```json
+{
+  "id": "canvas-1",
+  "type": "canvas",
+  "enabled": true,
+  "duration": 10,
+  "order": 2,
+  "active": false,
+  "settings": {}
+}
+```
+
+### GET `/api/screens`  
+Auth: **No**
+
+**200 sample**
+```json
+{
+  "cycling": true,
+  "activeScreen": "clock-1",
+  "screens": [
+    {"id":"clock-1","type":"clock","enabled":true,"duration":10,"order":0,"active":true}
+  ]
+}
+```
+
+### GET `/api/screens/{id}`  
+Auth: **No**
+
+**Responses**
+- `200` detailed screen object
+- `404` `{"error":"screen not found"}`
+
+### POST `/api/screens`  
+Auth: **Yes**
+
+Create a screen.
+
+**Request schema**
+```json
+{
+  "type": "clock|binary_clock|text_ticker|canvas|weather|battery",
+  "id": "optional string",
+  "enabled": true,
+  "duration": 10,
+  "settings": {}
+}
+```
+
+**Responses**
+- `201` created screen object
+- `400` `{"error":"no body"}`
+- `400` `{"error":"invalid json"}`
+- `400` `{"error":"invalid type"}`
+- `500` `{"error":"max screens reached"}`
+
+### PUT `/api/screens/{id}`  
+Auth: **Yes**
+
+Patch fields on existing screen.
+
+**Request schema (any subset):**
+```json
+{
+  "enabled": true,
+  "duration": 10,
+  "settings": {}
+}
+```
+
+**Responses**
+- `200` updated screen object
+- `400` `{"error":"no body"}`
+- `400` `{"error":"invalid json"}`
+- `404` `{"error":"screen not found"}`
+
+### DELETE `/api/screens/{id}`  
+Auth: **Yes**
+
+**Responses**
+- `200` `{"status":"deleted"}`
+- `404` `{"error":"screen not found"}`
+
+### POST `/api/screens/{id}/enable`  
+Auth: **Yes**
+
+- `200` `{"status":"enabled"}`
+- `404` `{"error":"screen not found"}`
+
+### POST `/api/screens/{id}/disable`  
+Auth: **Yes**
+
+- `200` `{"status":"disabled"}`
+- `404` `{"error":"screen not found"}`
+
+### POST `/api/screens/reorder`  
+Auth: **Yes**
+
+**Request schema**
+```json
+{
+  "order": ["id1", "id2", "id3"]
+}
+```
+
+**Responses**
+- `200` `{"status":"reordered"}`
+- `400` `{"error":"no body"}`
+- `400` `{"error":"invalid json"}`
+- `400` `{"error":"order array required"}`
+
+### POST `/api/screens/next`  
+Auth: **Yes**
+
+**Responses**
+- `200` `{"status":"ok"}`
+
+### PUT `/api/screens/cycling`  
+Auth: **Yes**
+
+**Request schema**
+```json
+{ "enabled": true }
+```
+
+**Responses**
+- `200` `{"cycling":true}` or `{"cycling":false}`
+- `400` `{"error":"no body"}`
+- `400` `{"error":"invalid json"}`
+
+### GET `/api/screens/defaults`  
+Auth: **No**
+
+**200 sample**
+```json
+{
+  "use24h": false,
+  "timezone": "MST7MDT,M3.2.0,M11.1.0",
+  "font": 1,
+  "defaultColor": "#FFFFFF"
+}
+```
+
+### PUT `/api/screens/defaults`  
+Auth: **Yes**
+
+**Request schema (all optional):**
+```json
+{
+  "use24h": false,
+  "timezone": "UTC0",
+  "font": 1,
+  "defaultColor": "#RRGGBB"
+}
+```
+
+**Responses**
+- `200` updated defaults object
+- `400` `{"error":"no body"}`
+- `400` `{"error":"invalid json"}`
+
+---
+
+## 3.5 Canvas API
+
+`{id}` must refer to a screen with `type: "canvas"`.
+
+### POST `/api/canvas/{id}`  
+Auth: **Yes**
+
+Push full frame payload.
+
+**Request schema**
+```json
+{
+  "rgb": "hex string of raw RGB bytes (32*8*3 bytes => 768 bytes => 1536 hex chars)"
+}
+```
+
+**Responses**
+- `200` `{"status":"ok"}`
+- `400` `{"error":"no body"}`
+- `404` `{"error":"canvas screen not found"}`
+
+### POST `/api/canvas/{id}/draw`  
+Auth: **Yes**
+
+AWTRIX-style drawing commands.
+
+**Request schema (any subset):**
+```json
+{
+  "cl": true,
+  "df": [[x, y, w, h, "#RRGGBB"]],
+  "dl": [[x0, y0, x1, y1, "#RRGGBB"]],
+  "dp": [[x, y, "#RRGGBB"]]
+}
+```
+
+**Responses**
+- `200` `{"status":"ok"}`
+- `400` `{"error":"no body"}`
+- `400` `{"error":"invalid json"}`
+- `404` `{"error":"canvas screen not found"}`
+
+### GET `/api/canvas/{id}/frame`  
+Auth: **Yes**
+
+Returns current composed frame (effect layer + canvas layer).
+
+**200 sample**
+```json
+{
+  "width": 32,
+  "height": 8,
+  "pixels": ["#000000", "#00FF00", "..."]
+}
+```
+
+**Errors**
+- `404` `{"error":"canvas screen not found"}`
+
+---
+
+## 3.6 Preview / Icons / Overtake
+
+### POST `/api/preview`  
+Auth: **Yes**
+
+Render a temporary preview frame for a screen type.
+
+**Request schema**
+```json
+{
+  "type": "clock|binary_clock|text_ticker|weather|battery",
+  "settings": {},
+  "nowMs": 0
+}
+```
+
+**Responses**
+- `200` `{ "width":32, "height":8, "pixels":["#RRGGBB", ...] }`
+- `400` `{"error":"no body"}`
+- `400` `{"error":"invalid json"}`
+- `400` `{"error":"type required"}`
+- `400` `{"error":"unsupported preview type"}`
+
+### GET `/api/lametric/search?q=<query>&limit=<1..50>`  
+Auth: **Yes**
+
+**200 sample**
+```json
+{
+  "results": [
+    {"id":389,"title":"battery","type":"picture","url":"...","thumb":"..."}
+  ]
+}
+```
+
+Errors:
+- `500` `{"error":"http begin failed"}`
+- `502` `{"error":"lametric upstream failed"}`
+- `500` `{"error":"lametric parse failed"}`
+
+### GET `/api/lametric/icon?id=<id>&fmt=gif|png`  
+Auth: **Yes**
+
+Returns binary image data.
+
+Responses:
+- `200` image stream (`image/gif` or `image/png`)
+- `400` `{"error":"invalid id"}`
+- `500` `{"error":"http begin failed"}`
+- `502` `{"error":"lametric icon fetch failed"}`
+
+### POST `/api/overtake/mute`  
+Auth: **Yes**
+
+- `200` `{"status":"muted"}`
+- `503` `{"error":"overtake unavailable"}`
+
+### POST `/api/overtake/clear`  
+Auth: **Yes**
+
+- `200` `{"status":"cleared"}`
+- `503` `{"error":"overtake unavailable"}`
+
+---
+
+## 4) Quick API Smoke Examples
 
 ```bash
-# Status
-curl http://192.168.0.48/api/status
+# Status (no auth)
+curl http://<ip>/api/status
 
-# Read defaults
-curl http://192.168.0.48/api/screens/defaults
+# Read config (auth)
+curl -H "X-API-Key: <token>" http://<ip>/api/config
 
-# Update defaults (auth required when token set)
-curl -X PUT http://192.168.0.48/api/screens/defaults \
-  -H "Content-Type: application/json" \
+# Pause screen cycling
+curl -X PUT http://<ip>/api/screens/cycling \
   -H "X-API-Key: <token>" \
-  -d '{"use24h":true,"timezone":"UTC0","font":3,"defaultColor":"#12AB34"}'
-
-# Create a clock that inherits current defaults
-curl -X POST http://192.168.0.48/api/screens \
   -H "Content-Type: application/json" \
-  -H "X-API-Key: <token>" \
-  -d '{"type":"clock"}'
-
-# Pause cycling
-curl -X PUT http://192.168.0.48/api/screens/cycling \
-  -H "Content-Type: application/json" \
-  -H "X-API-Key: <token>" \
   -d '{"enabled":false}'
 
-# Step once while paused
-curl -X POST http://192.168.0.48/api/screens/next -H "X-API-Key: <token>"
-
-# Reorder screens
-curl -X POST http://192.168.0.48/api/screens/reorder \
-  -H "Content-Type: application/json" \
+# Draw one pixel on canvas-1
+curl -X POST http://<ip>/api/canvas/canvas-1/draw \
   -H "X-API-Key: <token>" \
-  -d '{"order":["clock-1","weather-1","canvas-1"]}'
+  -H "Content-Type: application/json" \
+  -d '{"dp":[[0,0,"#00FF00"]]}'
 ```
 
-## Weather/network execution model (non-blocking)
+---
 
-Weather networking is decoupled from the main `loop()`:
+## 5) Hardware Reference
 
-- Main loop calls `weatherService.update()` which does **bounded work** only.
-- Blocking HTTP (ZIP geocode + Open-Meteo fetch) runs in a dedicated FreeRTOS worker task.
-- The main loop schedules jobs via a small state machine:
-  - `idle` → `geocoding` / `fetching` → `backoff` → `idle`
-- Each network op has a hard timeout (`NET_OP_TIMEOUT`), and failures apply exponential backoff (`NET_BASE_BACKOFF` up to `NET_MAX_BACKOFF`).
-- Sensor fallback reads are split into two phases (kick + later read) to avoid delay-based blocking.
-- OTA/Wi-Fi restart handlers now use deferred restart scheduling (no `delay()` in request handlers).
+- MCU: ESP32-D0WD
+- Matrix: 32x8 WS2812B
+- Buzzer: GPIO 15
+- Buttons: GPIO 26 / 14 / 27
+- LDR: GPIO 35
+- Battery sense: GPIO 34
+- I2C: SCL 22, SDA 21
 
-Operationally, this keeps display/input/web-server responsiveness intact even if weather endpoints are slow or unreachable.
+---
 
-## API smoke test (common calls)
+## 6) Notes
 
-For a fast confidence pass against common endpoints:
-
-```bash
-# Read-only checks
-scripts/api_smoke_check.sh --host 192.168.0.48
-
-# Include auth/write-path checks when token is set
-scripts/api_smoke_check.sh --host 192.168.0.48 --token "$API_TOKEN" --mutating
-```
-
-Checklist and evidence capture flow: `scripts/API_SMOKE_CHECKLIST.md`.
-
-## Network resilience validation
-
-```bash
-# Read-only latency + diagnostics checks
-BASE_URL=http://192.168.0.48 scripts/validate_network_resilience.sh
-
-# Include degraded-mode mutation checks (invalid ZIP + restore)
-BASE_URL=http://192.168.0.48 API_TOKEN="$API_TOKEN" scripts/validate_network_resilience.sh
-```
-
-Detailed runbook: `scripts/NETWORK_RESILIENCE_CHECKLIST.md`.
-
-## Notes
-
-- `/api/screens/defaults` is intentionally read-open and write-protected.
-- Some enum values exist in code (`CRYPTO`, `CUSTOM`) but are not creatable via current API and are not part of shipped behavior.
-- `FIRMWARE_VERSION` is currently static (`0.1.0`) in `WebServerManager.h`.
-
-## Dependencies
-
-| Library | Version | Purpose |
-|---|---|---|
-| FastLED | ^3.7 | WS2812B LED driver |
-| FastLED NeoMatrix | ^1.2 | Matrix layout mapping |
-| Adafruit GFX | ^1.11 | Graphics + font rendering |
-| ArduinoJson | ^7.0 | JSON parsing/serialization |
-| LittleFS | built-in | Persistent config/screen storage |
-| WebServer | built-in | HTTP server |
-| WiFi | built-in | Connectivity |
-| Update | built-in | OTA firmware updates |
+- Version is currently reported as `0.1.0` by `/api/status`.
+- Some UI-only behavior (like export/import helper flow) composes multiple API calls; endpoints above are the underlying contract.
+- If auth is enabled and requests fail, confirm `X-API-Key` token first.
