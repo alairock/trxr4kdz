@@ -29,6 +29,7 @@ public:
     void begin(ConfigManager& config, WiFiManager& wifi, DisplayManager& display, ScreenManager& screens, WeatherService* weather = nullptr, AlarmManager* alarm = nullptr, OvertakeManager* overtake = nullptr, NotificationManager* notifications = nullptr);
     void update();
     RemoteButtonAction takeRemoteButtonAction();
+    bool renderDevicePreviewIfActive(unsigned long nowMs);
 
 private:
     void handleStatus();
@@ -56,6 +57,9 @@ private:
     void handleCanvasDraw();
     void handleCanvasFrame();
     void handlePreview();
+    void handlePreviewDevice();
+    void handlePreviewDeviceFrame();
+    bool renderPreviewFrame(const JsonDocument& in, const String& type);
     void handleLametricSearch();
     void handleMqttStatus();
     void handleGetAlarm();
@@ -99,4 +103,8 @@ private:
     String _otaErrorMessage;
 
     volatile RemoteButtonAction _pendingButtonAction = RemoteButtonAction::NONE;
+
+    CRGB _devicePreviewFrame[NUM_LEDS];
+    bool _devicePreviewValid = false;
+    unsigned long _devicePreviewUntilMs = 0;
 };

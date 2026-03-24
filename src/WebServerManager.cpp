@@ -101,11 +101,11 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:#6eb0ff;box-sh
 .hint{font-size:12px;opacity:.82}
 .hidden{display:none}
 </style></head><body>
-<div class="wrap"><aside class="side"><h1>trxr4kdz</h1><button id="tabConfig" class="active">Config</button><button id="tabWifi">WiFi</button><button id="tabScreens">Screens</button><button id="tabMqtt">MQTT</button><button id="tabAlarm">Alarm</button><button id="tabFirmware">Firmware</button><button id="tabNotifications">Notifications</button><button id="tabSettings">Settings</button><div class="bottom"><button id="tabButtons">Buttons</button><button onclick="window.open('https://github.com/alairock/trxr4kdz','_blank','noopener,noreferrer')">GitHub</button></div></aside>
+<div class="wrap"><aside class="side"><h1>trxr4kdz</h1><button id="tabConfig" class="active">Config</button><button id="tabWifi">WiFi</button><button id="tabScreens">Screens</button><button id="tabMqtt">MQTT</button><button id="tabAlarm">Alarm</button><button id="tabFirmware">Firmware</button><button id="tabNotifications">Indicators</button><button id="tabSettings">Import/Export</button><div class="bottom"><button id="tabButtons">Buttons</button><button onclick="window.open('https://github.com/alairock/trxr4kdz','_blank','noopener,noreferrer')">GitHub</button></div></aside>
 <main class="main">
 <section id="pConfig" class="page active">
   <div class="card"><h3>Global Config</h3>
-    <div class="row"><label class="field">Hostname<input id="hostname"></label><label class="field">Brightness<input id="brightness" type="number" min="0" max="255"></label><label class="field">Zip<input id="zip"></label></div>
+    <div class="row"><label class="field">Brightness <span class="hint" id="brightnessVal">40</span><input id="brightness" type="range" min="1" max="255" value="40"></label><label class="field">Zip<input id="zip"></label></div>
     <div class="row"><button class="btn" onclick="loadCfg()">Reload</button><button class="btn primary" onclick="saveCfg()">Save</button></div>
     <p id="cfgMsg" class="hint"></p>
   </div>
@@ -202,7 +202,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:#6eb0ff;box-sh
 </section>
 
 <section id="pNotifications" class="page">
-  <div class="card"><h3>Notification Indicators</h3>
+  <div class="card"><h3>Indicators</h3>
     <div class="hint">Right-side indicators are persistent, API/MQTT-driven, and always rendered on top of all content.</div>
 
     <div class="row"><b>Top Right (corner)</b></div>
@@ -360,15 +360,19 @@ document.querySelectorAll('#typeTabs .chip').forEach(ch=>ch.onclick=()=>{
   loadScreens();
 });
 
+brightness?.addEventListener('input', ()=>{ brightnessVal.textContent = String(brightness.value||40); });
+
 async function loadCfg(){
-  const c=await j('/api/config'); hostname.value=c.hostname||''; brightness.value=c.brightness??40;
+  const c=await j('/api/config');
+  brightness.value=Number(c.brightness??40);
+  brightnessVal.textContent=String(brightness.value||40);
   const s=await j('/api/screens'); const w=(s.screens||[]).find(x=>x.type==='weather'); zip.value='';
   if(w){const d=await j('/api/screens/'+w.id); zip.value=(d.settings&&d.settings.zipCode)||'';}
 }
 
 async function saveCfg(){
   try{
-    await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({hostname:hostname.value.trim(),brightness:Number(brightness.value||40)})});
+    await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({brightness:Number(brightness.value||40)})});
     const s=await j('/api/screens');
     for(const w of (s.screens||[]).filter(x=>x.type==='weather')){
       await fetch('/api/screens/'+w.id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({settings:{zipCode:zip.value.trim()}})});
@@ -1054,6 +1058,29 @@ function imageDataToPixels(data){
   return pixels;
 }
 
+function rgbhexToPixels(rgbhex){
+  if (typeof rgbhex !== 'string' || rgbhex.length < (32*8*6)) return [];
+  const px = [];
+  for(let i=0;i<32*8;i++){
+    const o=i*6;
+    const r=rgbhex.substring(o,o+2);
+    const g=rgbhex.substring(o+2,o+4);
+    const b=rgbhex.substring(o+4,o+6);
+    px.push(`#${r}${g}${b}`.toUpperCase());
+  }
+  return px;
+}
+
+function pixelsToRgbhex(pixels){
+  if(!Array.isArray(pixels)) return '';
+  let s='';
+  for(let i=0;i<32*8;i++){
+    const c = String(pixels[i]||'#000000').replace('#','').toUpperCase();
+    s += /^[0-9A-F]{6}$/.test(c) ? c : '000000';
+  }
+  return s;
+}
+
 async function ensureGifDecoder(){
   if(window.gifuctjs?.parseGIF && window.gifuctjs?.decompressFrames) return { ok:true };
   try {
@@ -1251,6 +1278,7 @@ function collectSettingsForPreview(card, type, base={}){
     settings.iconId=Number(card.querySelector('.f-iconId')?.value||settings.iconId||0);
     if (card._iconPayload) settings.icon = card._iconPayload;
   } else if(type==='canvas'){
+    settings.screenId = card.dataset.screenId || settings.screenId;
     settings.mode = card.querySelector('.f-canvasMode')?.value || settings.mode || 'draw';
     settings.drawColor = card.querySelector('.f-canvasColor')?.value || settings.drawColor || '#FFFFFF';
     settings.effectEnabled = !!card.querySelector('.f-effEnable')?.checked;
@@ -1283,6 +1311,10 @@ async function renderPreview(card, type, baseSettings={}, force=false){
   const lastTs = Number(card.dataset.previewLastTs || 0);
   if(!force && (nowTs - lastTs) < minInterval) return;
 
+  // Canvas draw-mode UX: while pointer is down, keep UI as source-of-truth and
+  // avoid fetch-based refreshes that can visually fight local stroke painting.
+  if (type === 'canvas' && card.dataset.canvasPainting === '1' && !force) return;
+
   const ctx = cv.getContext('2d');
   const W=32, H=8;
   const cell = Math.floor(Math.min(cv.width/W, cv.height/H));
@@ -1292,19 +1324,18 @@ async function renderPreview(card, type, baseSettings={}, force=false){
   card.dataset.previewBusy='1';
   try {
     let px = [];
-    if (type === 'canvas' && card.dataset.screenId) {
-      const r = await fetch(`/api/canvas/${card.dataset.screenId}/frame`);
-      if(!r.ok) throw new Error(await r.text());
-      const j = await r.json();
-      px = j.pixels || [];
-    } else {
-      const settings = collectSettingsForPreview(card, type, baseSettings);
-      previewTick += 160;
-      const r = await fetch('/api/preview',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type,settings,nowMs:previewTick})});
-      if(!r.ok) throw new Error(await r.text());
-      const j = await r.json();
-      px = j.pixels || [];
+    const settings = collectSettingsForPreview(card, type, baseSettings);
+    previewTick += 160;
+    const payload = {type,settings,nowMs:previewTick,mirrorHoldMs:1700};
+    const isCanvasDraw = (type==='canvas') && ((card.querySelector('.f-canvasMode')?.value || 'draw') === 'draw');
+    const isPainting = card.dataset.canvasPainting === '1';
+    if (!(isCanvasDraw && isPainting)) {
+      fetch('/api/preview/device',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}).catch(()=>{});
     }
+    const r = await fetch('/api/preview',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    if(!r.ok) throw new Error(await r.text());
+    const j = await r.json();
+    px = (j.rgbhex && j.rgbhex.length >= 32*8*6) ? rgbhexToPixels(j.rgbhex) : (j.pixels || []);
 
     // Draw only after we have the full frame so we never flash blank between requests
     ctx.clearRect(0,0,cv.width,cv.height);
@@ -1742,6 +1773,7 @@ mosquitto_pub -h <broker> -p 1883 -u <user> -P '<pass>' \\
 
       const cv = c.querySelector('.previewCanvas');
       if (cv) {
+        c.dataset.canvasPainting = '0';
         cv.style.cursor = 'crosshair';
         cv.addEventListener('contextmenu', (e)=>e.preventDefault());
 
@@ -1797,6 +1829,7 @@ mosquitto_pub -h <broker> -p 1883 -u <user> -P '<pass>' \\
           if (modeSel.value !== 'draw') return;
           if (ev.button !== 0 && ev.button !== 2) return;
           painting = true;
+          c.dataset.canvasPainting = '1';
           eraseMode = (ev.button === 2);
           const {px,py} = toPixel(ev);
           queuePoint(px, py, eraseMode);
@@ -1809,8 +1842,10 @@ mosquitto_pub -h <broker> -p 1883 -u <user> -P '<pass>' \\
         window.addEventListener('mouseup', ()=>{
           if (!painting) return;
           painting = false;
+          c.dataset.canvasPainting = '0';
           lastKey='';
           flushStroke();
+          if (c.dataset.previewEnabled === '1') renderPreview(c,'canvas',d.settings||{}, true);
         });
       }
     }
@@ -1932,12 +1967,8 @@ setInterval(()=>{
       if(!card || !card.dataset.type) return;
       if(card.dataset.previewEnabled!=='1') return;
 
-      // In canvas draw mode, preview is locally painted and flushed on mouseup,
-      // so skip background polling.
-      if (card.dataset.type === 'canvas') {
-        const modeSel = card.querySelector('.f-canvasMode');
-        if ((modeSel?.value || 'draw') === 'draw') return;
-      }
+      // Keep polling even for canvas draw mode so on-device preview mirror
+      // stays latched while Preview is enabled.
 
       let base={};
       try{base=JSON.parse(card.dataset.base||'{}')}catch{}
@@ -2017,6 +2048,8 @@ void WebServerManager::begin(ConfigManager& config, WiFiManager& wifi, DisplayMa
         [this]() { handleUpdateUpload(); }
     );
     _server.on("/api/preview", HTTP_POST, [this]() { handlePreview(); });
+    _server.on("/api/preview/device", HTTP_POST, [this]() { handlePreviewDevice(); });
+    _server.on("/api/preview/device/frame", HTTP_POST, [this]() { handlePreviewDeviceFrame(); });
     _server.on("/api/lametric/search", HTTP_GET, [this]() { handleLametricSearch(); });
     _server.on("/api/lametric/icon", HTTP_GET, [this]() { handleLametricIcon(); });
     _server.on("/api/mqtt/status", HTTP_GET, [this]() { handleMqttStatus(); });
@@ -2109,31 +2142,37 @@ void WebServerManager::handleUI() {
     _server.send_P(200, "text/html", UI_HTML);
 }
 
-void WebServerManager::handlePreview() {
-    if (!requireAuth()) return;
-    if (!_server.hasArg("plain")) {
-        _server.send(400, "application/json", "{\"error\":\"no body\"}");
-        return;
-    }
-
-    JsonDocument in;
-    if (deserializeJson(in, _server.arg("plain")) || !in.is<JsonObject>()) {
-        _server.send(400, "application/json", "{\"error\":\"invalid json\"}");
-        return;
-    }
-
-    String type = in["type"] | "";
-    if (type.length() == 0) {
-        _server.send(400, "application/json", "{\"error\":\"type required\"}");
-        return;
-    }
-
+bool WebServerManager::renderPreviewFrame(const JsonDocument& in, const String& type) {
     Screen* preview = nullptr;
     ClockScreen c1;
     BinaryClockScreen c2;
     TextTickerScreen c3;
     static WeatherScreen c4Preview; // persist state across preview calls so flip animation is visible
     BatteryScreen c5;
+
+    if (type == "canvas") {
+        String canvasId = "";
+        if (in["settings"].is<JsonObjectConst>()) {
+            JsonObjectConst s = in["settings"].as<JsonObjectConst>();
+            if (s["screenId"].is<const char*>()) canvasId = s["screenId"].as<String>();
+        }
+        if (canvasId.length() == 0 && in["screenId"].is<const char*>()) canvasId = in["screenId"].as<String>();
+        if (canvasId.length() == 0) return false;
+
+        CanvasScreen* canvas = _screens ? _screens->getCanvasScreen(canvasId) : nullptr;
+        if (!canvas) return false;
+
+        uint16_t composed[MATRIX_WIDTH * MATRIX_HEIGHT];
+        canvas->composedFrame(composed, millis());
+        _display->clear();
+        for (int y = 0; y < MATRIX_HEIGHT; y++) {
+            for (int x = 0; x < MATRIX_WIDTH; x++) {
+                uint16_t c = composed[y * MATRIX_WIDTH + x];
+                _display->drawPixel(x, y, c);
+            }
+        }
+        return true;
+    }
 
     if (type == "clock") preview = &c1;
     else if (type == "binary_clock") preview = &c2;
@@ -2143,10 +2182,7 @@ void WebServerManager::handlePreview() {
         preview = &c4Preview;
     } else if (type == "battery") preview = &c5;
 
-    if (!preview) {
-        _server.send(400, "application/json", "{\"error\":\"unsupported preview type\"}");
-        return;
-    }
+    if (!preview) return false;
 
     if (in["settings"].is<JsonObjectConst>()) {
         if (type == "text_ticker") {
@@ -2161,9 +2197,6 @@ void WebServerManager::handlePreview() {
             preview->configure(in["settings"].as<JsonObjectConst>());
         }
     }
-
-    CRGB backup[NUM_LEDS];
-    memcpy(backup, _display->rawLeds(), sizeof(backup));
 
     // Treat nowMs as a phase offset, not absolute epoch, so screen internals using millis() deltas stay valid.
     unsigned long baseNow = millis();
@@ -2199,12 +2232,44 @@ void WebServerManager::handlePreview() {
         preview->update(*_display, renderNow);
     }
 
+    return true;
+}
+
+void WebServerManager::handlePreview() {
+    if (!requireAuth()) return;
+    if (!_server.hasArg("plain")) {
+        _server.send(400, "application/json", "{\"error\":\"no body\"}");
+        return;
+    }
+
+    JsonDocument in;
+    if (deserializeJson(in, _server.arg("plain")) || !in.is<JsonObject>()) {
+        _server.send(400, "application/json", "{\"error\":\"invalid json\"}");
+        return;
+    }
+
+    String type = in["type"] | "";
+    if (type.length() == 0) {
+        _server.send(400, "application/json", "{\"error\":\"type required\"}");
+        return;
+    }
+
+    CRGB backup[NUM_LEDS];
+    memcpy(backup, _display->rawLeds(), sizeof(backup));
+
+    if (!renderPreviewFrame(in, type)) {
+        memcpy(_display->rawLeds(), backup, sizeof(backup));
+        _server.send(400, "application/json", "{\"error\":\"unsupported preview type\"}");
+        return;
+    }
+
     JsonDocument out;
     out["width"] = MATRIX_WIDTH;
     out["height"] = MATRIX_HEIGHT;
-    JsonArray px = out["pixels"].to<JsonArray>();
 
-    char buf[8];
+    String rgbhex;
+    rgbhex.reserve(NUM_LEDS * 6);
+    char buf[7];
     for (int y = 0; y < MATRIX_HEIGHT; y++) {
         for (int x = 0; x < MATRIX_WIDTH; x++) {
             uint16_t c = _display->getPixelColor565(x, y);
@@ -2214,16 +2279,121 @@ void WebServerManager::handlePreview() {
             uint8_t r = (r5 << 3) | (r5 >> 2);
             uint8_t g = (g6 << 2) | (g6 >> 4);
             uint8_t b = (b5 << 3) | (b5 >> 2);
-            snprintf(buf, sizeof(buf), "#%02X%02X%02X", r, g, b);
-            px.add(buf);
+            snprintf(buf, sizeof(buf), "%02X%02X%02X", r, g, b);
+            rgbhex += buf;
         }
     }
+    out["rgbhex"] = rgbhex;
 
     memcpy(_display->rawLeds(), backup, sizeof(backup));
 
     String json;
     serializeJson(out, json);
     _server.send(200, "application/json", json);
+}
+
+void WebServerManager::handlePreviewDevice() {
+    if (!requireAuth()) return;
+    if (!_server.hasArg("plain")) {
+        _server.send(400, "application/json", "{\"error\":\"no body\"}");
+        return;
+    }
+
+    JsonDocument in;
+    if (deserializeJson(in, _server.arg("plain")) || !in.is<JsonObject>()) {
+        _server.send(400, "application/json", "{\"error\":\"invalid json\"}");
+        return;
+    }
+
+    String type = in["type"] | "";
+    if (type.length() == 0) {
+        _server.send(400, "application/json", "{\"error\":\"type required\"}");
+        return;
+    }
+
+    unsigned long mirrorHoldMs = in["mirrorHoldMs"].is<unsigned long>() ? in["mirrorHoldMs"].as<unsigned long>() : 1700UL;
+    if (mirrorHoldMs < 300UL) mirrorHoldMs = 300UL;
+    if (mirrorHoldMs > 10000UL) mirrorHoldMs = 10000UL;
+
+    CRGB backup[NUM_LEDS];
+    memcpy(backup, _display->rawLeds(), sizeof(backup));
+
+    if (!renderPreviewFrame(in, type)) {
+        memcpy(_display->rawLeds(), backup, sizeof(backup));
+        _server.send(400, "application/json", "{\"error\":\"unsupported preview type\"}");
+        return;
+    }
+
+    memcpy(_devicePreviewFrame, _display->rawLeds(), sizeof(_devicePreviewFrame));
+    _devicePreviewValid = true;
+    _devicePreviewUntilMs = millis() + mirrorHoldMs;
+
+    memcpy(_display->rawLeds(), backup, sizeof(backup));
+    _server.send(200, "application/json", "{\"status\":\"ok\"}");
+}
+
+void WebServerManager::handlePreviewDeviceFrame() {
+    if (!requireAuth()) return;
+    if (!_server.hasArg("plain")) {
+        _server.send(400, "application/json", "{\"error\":\"no body\"}");
+        return;
+    }
+
+    JsonDocument in;
+    if (deserializeJson(in, _server.arg("plain")) || !in.is<JsonObject>()) {
+        _server.send(400, "application/json", "{\"error\":\"invalid json\"}");
+        return;
+    }
+
+    String rgbhex = in["rgbhex"] | "";
+    if (rgbhex.length() < NUM_LEDS * 6) {
+        _server.send(400, "application/json", "{\"error\":\"rgbhex required\"}");
+        return;
+    }
+
+    unsigned long mirrorHoldMs = in["mirrorHoldMs"].is<unsigned long>() ? in["mirrorHoldMs"].as<unsigned long>() : 1700UL;
+    if (mirrorHoldMs < 300UL) mirrorHoldMs = 300UL;
+    if (mirrorHoldMs > 10000UL) mirrorHoldMs = 10000UL;
+
+    auto hexNibble = [](char c)->int {
+        if (c >= '0' && c <= '9') return c - '0';
+        if (c >= 'a' && c <= 'f') return 10 + (c - 'a');
+        if (c >= 'A' && c <= 'F') return 10 + (c - 'A');
+        return -1;
+    };
+
+    CRGB backup[NUM_LEDS];
+    memcpy(backup, _display->rawLeds(), sizeof(backup));
+    _display->clear();
+
+    for (int y = 0; y < MATRIX_HEIGHT; y++) {
+        for (int x = 0; x < MATRIX_WIDTH; x++) {
+            int i = y * MATRIX_WIDTH + x;
+            int o = i * 6;
+            int r1 = hexNibble(rgbhex[o]);
+            int r2 = hexNibble(rgbhex[o + 1]);
+            int g1 = hexNibble(rgbhex[o + 2]);
+            int g2 = hexNibble(rgbhex[o + 3]);
+            int b1 = hexNibble(rgbhex[o + 4]);
+            int b2 = hexNibble(rgbhex[o + 5]);
+            if (r1 < 0 || r2 < 0 || g1 < 0 || g2 < 0 || b1 < 0 || b2 < 0) {
+                memcpy(_display->rawLeds(), backup, sizeof(backup));
+                _server.send(400, "application/json", "{\"error\":\"invalid rgbhex\"}");
+                return;
+            }
+            uint8_t r = (r1 << 4) | r2;
+            uint8_t g = (g1 << 4) | g2;
+            uint8_t b = (b1 << 4) | b2;
+            _display->drawPixel(x, y, DisplayManager::rgb565(r, g, b));
+        }
+    }
+
+    memcpy(_devicePreviewFrame, _display->rawLeds(), sizeof(_devicePreviewFrame));
+    memcpy(_display->rawLeds(), backup, sizeof(backup));
+
+    _devicePreviewValid = true;
+    _devicePreviewUntilMs = millis() + mirrorHoldMs;
+    _server.send(200, "application/json", "{\"status\":\"ok\"}");
 }
 
 void WebServerManager::handleMqttStatus() {
@@ -2424,6 +2594,17 @@ WebServerManager::RemoteButtonAction WebServerManager::takeRemoteButtonAction() 
     RemoteButtonAction a = _pendingButtonAction;
     _pendingButtonAction = RemoteButtonAction::NONE;
     return a;
+}
+
+bool WebServerManager::renderDevicePreviewIfActive(unsigned long nowMs) {
+    if (!_display || !_devicePreviewValid) return false;
+    if (_devicePreviewUntilMs == 0 || nowMs > _devicePreviewUntilMs) {
+        _devicePreviewValid = false;
+        _devicePreviewUntilMs = 0;
+        return false;
+    }
+    memcpy(_display->rawLeds(), _devicePreviewFrame, sizeof(_devicePreviewFrame));
+    return true;
 }
 
 void WebServerManager::handleLametricSearch() {
@@ -2641,6 +2822,7 @@ void WebServerManager::handlePostConfig() {
 
     if (doc["brightness"].is<int>()) {
         _config->setBrightness(doc["brightness"]);
+        if (_display) _display->setBrightness(_config->getBrightness());
     }
     if (doc["hostname"].is<const char*>()) {
         _config->setHostname(doc["hostname"].as<String>());
@@ -3173,12 +3355,13 @@ void WebServerManager::handleCanvasFrame() {
     JsonDocument out;
     out["width"] = MATRIX_WIDTH;
     out["height"] = MATRIX_HEIGHT;
-    JsonArray px = out["pixels"].to<JsonArray>();
 
     uint16_t composed[MATRIX_WIDTH * MATRIX_HEIGHT];
     canvas->composedFrame(composed, millis());
 
-    char buf[8];
+    String rgbhex;
+    rgbhex.reserve(NUM_LEDS * 6);
+    char buf[7];
     for (int i = 0; i < MATRIX_WIDTH * MATRIX_HEIGHT; i++) {
         uint16_t c = composed[i];
         uint8_t r5 = (c >> 11) & 0x1F;
@@ -3187,9 +3370,10 @@ void WebServerManager::handleCanvasFrame() {
         uint8_t r = (r5 << 3) | (r5 >> 2);
         uint8_t g = (g6 << 2) | (g6 >> 4);
         uint8_t b = (b5 << 3) | (b5 >> 2);
-        snprintf(buf, sizeof(buf), "#%02X%02X%02X", r, g, b);
-        px.add(buf);
+        snprintf(buf, sizeof(buf), "%02X%02X%02X", r, g, b);
+        rgbhex += buf;
     }
+    out["rgbhex"] = rgbhex;
 
     String json;
     serializeJson(out, json);

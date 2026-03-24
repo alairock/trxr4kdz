@@ -65,7 +65,7 @@ void setup() {
 
     // Init display and show boot message
     displayManager.begin(configManager.getBrightness());
-    displayManager.showSmallRainbow("BOOT");
+    displayManager.showSmallRainbow("trxr4kdz");
 
     // Start WiFi (AP always, STA if configured)
     wifiManager.begin(configManager);
@@ -99,6 +99,16 @@ void setup() {
 }
 
 void loop() {
+    // Rainbow boot banner until we start boot IP flow
+    if (!buzzerInitDone) {
+        static unsigned long lastBootAnim = 0;
+        unsigned long now = millis();
+        if (now - lastBootAnim >= 90) {
+            lastBootAnim = now;
+            displayManager.showSmallRainbow("trxr4kdz");
+        }
+    }
+
     // After 2s, enable buzzer, beep, show IP, then start screens
     if (!buzzerInitDone && millis() - bootTime >= 2000) {
         buzzerManager.ready();
@@ -220,53 +230,57 @@ void loop() {
 
     overtakeManager.update();
 
-    if (alarmManager.isAlarming()) {
-        alarmManager.render(displayManager, millis());
-    } else if (overtakeManager.isActive()) {
-        overtakeManager.render(displayManager);
-    } else if (screensStarted && !settingsMenu.isActive()) {
-        if (statusFlashUntil > millis()) {
-            displayManager.showSmallRainbow(statusFlashText);
-        } else if (screenManager.getActiveScreen() == nullptr) {
-            unsigned long now = millis();
-            if (noScreenUrl.length() == 0 || (now % 5000) < 60) {
-                noScreenUrl = "http://" + (wifiManager.isSTAConnected() ? wifiManager.getSTAIP() : wifiManager.getAPIP());
-            }
-            if (now - noScreenLastStep >= 50) {
-                noScreenLastStep = now;
-                displayManager.clear();
-                int16_t ty = (8 - DisplayManager::fontHeight(1)) / 2;
-                uint8_t charW = DisplayManager::fontCharWidth(1);
-                uint8_t hueStep = 256 / max((int)noScreenUrl.length(), 1);
-                uint8_t hueOffset = (now / 10) & 0xFF;
-                int16_t cx = noScreenScrollX;
-                for (unsigned int i = 0; i < noScreenUrl.length(); i++) {
-                    CRGB c = CHSV(hueOffset + i * hueStep, 255, 255);
-                    uint16_t color = DisplayManager::rgb565(c.r, c.g, c.b);
-                    char ch[2] = { noScreenUrl[i], 0 };
-                    displayManager.drawFontText(cx, ty, ch, color, 1);
-                    cx += (noScreenUrl[i] == '.' || noScreenUrl[i] == ':') ? 2 : charW;
+    unsigned long nowMs = millis();
+    bool devicePreviewActive = webServerManager.renderDevicePreviewIfActive(nowMs);
+
+    if (!devicePreviewActive) {
+        if (alarmManager.isAlarming()) {
+            alarmManager.render(displayManager, nowMs);
+        } else if (overtakeManager.isActive()) {
+            overtakeManager.render(displayManager);
+        } else if (screensStarted && !settingsMenu.isActive()) {
+            if (statusFlashUntil > nowMs) {
+                displayManager.showSmallRainbow(statusFlashText);
+            } else if (screenManager.getActiveScreen() == nullptr) {
+                if (noScreenUrl.length() == 0 || (nowMs % 5000) < 60) {
+                    noScreenUrl = "http://" + (wifiManager.isSTAConnected() ? wifiManager.getSTAIP() : wifiManager.getAPIP());
                 }
-                displayManager.show();
-                noScreenScrollX--;
+                if (nowMs - noScreenLastStep >= 50) {
+                    noScreenLastStep = nowMs;
+                    displayManager.clear();
+                    int16_t ty = (8 - DisplayManager::fontHeight(1)) / 2;
+                    uint8_t charW = DisplayManager::fontCharWidth(1);
+                    uint8_t hueStep = 256 / max((int)noScreenUrl.length(), 1);
+                    uint8_t hueOffset = (nowMs / 10) & 0xFF;
+                    int16_t cx = noScreenScrollX;
+                    for (unsigned int i = 0; i < noScreenUrl.length(); i++) {
+                        CRGB c = CHSV(hueOffset + i * hueStep, 255, 255);
+                        uint16_t color = DisplayManager::rgb565(c.r, c.g, c.b);
+                        char ch[2] = { noScreenUrl[i], 0 };
+                        displayManager.drawFontText(cx, ty, ch, color, 1);
+                        cx += (noScreenUrl[i] == '.' || noScreenUrl[i] == ':') ? 2 : charW;
+                    }
+                    displayManager.show();
+                    noScreenScrollX--;
 
-                int16_t textW = 0;
-                for (unsigned int i = 0; i < noScreenUrl.length(); i++)
-                    textW += (noScreenUrl[i] == '.' || noScreenUrl[i] == ':') ? 2 : charW;
-                if (noScreenScrollX < -textW) noScreenScrollX = MATRIX_WIDTH;
+                    int16_t textW = 0;
+                    for (unsigned int i = 0; i < noScreenUrl.length(); i++)
+                        textW += (noScreenUrl[i] == '.' || noScreenUrl[i] == ':') ? 2 : charW;
+                    if (noScreenScrollX < -textW) noScreenScrollX = MATRIX_WIDTH;
+                }
+            } else {
+                // Reset fallback scroller when a screen is active again
+                noScreenScrollX = MATRIX_WIDTH;
+                noScreenLastStep = nowMs;
+                screenManager.update();
             }
-        } else {
-            // Reset fallback scroller when a screen is active again
-            noScreenScrollX = MATRIX_WIDTH;
-            noScreenLastStep = millis();
-            screenManager.update();
         }
-    }
 
-    bool wifiDisconnected = !wifiManager.isSTAConnected();
-    bool mqttConfigured = configManager.getMqttEnabled() && configManager.getMqttHost().length() > 0;
-    bool mqttProblem = mqttConfigured && !mqttManager.isConnected();
-    notificationManager.render(displayManager, wifiDisconnected, mqttProblem, millis());
+        bool wifiDisconnected = !wifiManager.isSTAConnected();
+        bool mqttConfigured = configManager.getMqttEnabled() && configManager.getMqttHost().length() > 0;
+        bool mqttProblem = mqttConfigured && !mqttManager.isConnected();
+        notificationManager.render(displayManager, wifiDisconnected, mqttProblem, nowMs);
+    }
 
     // Notifications must be on top of everything.
     displayManager.show();
