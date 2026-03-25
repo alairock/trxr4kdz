@@ -947,6 +947,9 @@ function typedFields(type,s){
       <option value='white'>white</option><option value='red'>red</option><option value='green'>green</option><option value='blue'>blue</option>
       <option value='pink'>pink</option><option value='purple'>purple</option><option value='rainbow_static'>rainbow_static</option><option value='rainbow_animated'>rainbow_animated</option>
     </select></label>
+    <label class='field compact'>Indicator Size<select class='f-indicatorSize'>
+      <option value='1x1'>1x1</option><option value='2x2'>2x2</option>
+    </select></label>
     <label class='field compact'>On Mode<select class='f-onMode'>
       <option value='custom'>custom (use On Color)</option>
       <option value='white'>white</option><option value='red'>red</option><option value='green'>green</option><option value='blue'>blue</option>
@@ -1256,6 +1259,7 @@ function collectSettingsForPreview(card, type, base={}){
     if (onModeSel === 'custom') delete settings.onMode;
     else settings.onMode = onModeSel;
     settings.indicatorMode=card.querySelector('.f-indicatorMode')?.value||settings.indicatorMode;
+    settings.indicatorSize=card.querySelector('.f-indicatorSize')?.value||settings.indicatorSize||'2x2';
     settings.onColor=card.querySelector('.f-onColor')?.value||settings.onColor;
     settings.offColor=card.querySelector('.f-offColor')?.value||settings.offColor;
   } else if(type==='weather'){
@@ -1589,6 +1593,7 @@ mosquitto_pub -h <broker> -p 1883 -u <user> -P '<pass>' \\
       c.querySelector('.f-use24h').checked=!!d.settings?.use24h;
       c.querySelector('.f-onMode').value=d.settings?.onMode||'custom';
       c.querySelector('.f-indicatorMode').value=d.settings?.indicatorMode||'red';
+      c.querySelector('.f-indicatorSize').value=d.settings?.indicatorSize||'2x2';
       c.querySelector('.f-onColor').value=toHex(d.settings?.onColor,'#ff00ff');
       c.querySelector('.f-offColor').value=toHex(d.settings?.offColor,'#552255');
       const updateOnColorVisibility = ()=>{
@@ -1900,6 +1905,7 @@ mosquitto_pub -h <broker> -p 1883 -u <user> -P '<pass>' \\
           if(onModeSel==='custom') delete body.settings.onMode;
           else body.settings.onMode=onModeSel;
           body.settings.indicatorMode=c.querySelector('.f-indicatorMode').value||body.settings.indicatorMode;
+          body.settings.indicatorSize=c.querySelector('.f-indicatorSize').value||body.settings.indicatorSize||'2x2';
           body.settings.onColor=c.querySelector('.f-onColor').value;
           body.settings.offColor=c.querySelector('.f-offColor').value;
         }

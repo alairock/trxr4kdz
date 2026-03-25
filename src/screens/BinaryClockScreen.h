@@ -22,9 +22,16 @@ private:
         RAINBOW_ANIMATED
     };
 
+    enum class IndicatorSize : uint8_t {
+        PIXEL_1X1 = 1,
+        PIXEL_2X2 = 2,
+    };
+
     uint16_t colorForMode(IndicatorMode mode, unsigned long now, uint8_t slot = 0) const;
     IndicatorMode modeFromString(const String& s) const;
     const char* modeToString(IndicatorMode m) const;
+    IndicatorSize sizeFromValue(JsonVariantConst value) const;
+    const char* sizeToString(IndicatorSize s) const;
 
     bool _use24h = false;
     uint16_t _onColor = 0xD81F;      // bright magenta/purple
@@ -32,4 +39,5 @@ private:
     IndicatorMode _indicatorMode = IndicatorMode::RED;
     bool _useOnMode = false;
     IndicatorMode _onMode = IndicatorMode::PURPLE;
+    IndicatorSize _indicatorSize = IndicatorSize::PIXEL_2X2;
 };
