@@ -1012,6 +1012,11 @@ function typedFields(type,s){
     <label class='field compact'>Speed <input type='range' min='0' max='100' step='1' class='f-effSpeed' value='40'></label>
     <label class='field compact'>Intensity <input type='range' min='0' max='100' step='1' class='f-effIntensity' value='60'></label>
   </div>
+  <div class='row'>
+    <label class='field compact'>Stale update warning <input type='checkbox' class='f-staleEnable'></label>
+    <label class='field compact'>Timeout sec <input type='number' min='1' class='f-staleTimeout' value='30'></label>
+    <span class='hint'>When enabled, a red disconnected warning appears if no API/MQTT update arrives in time.</span>
+  </div>
   <div class='row' style='display:none'>
     <label class='field compact'>Overtake on API/MQTT <input type='checkbox' class='f-ovtEnable'></label>
     <label class='field compact'>Duration sec (-1 inf)<input type='number' class='f-ovtDur' value='30'></label>
@@ -1289,6 +1294,8 @@ function collectSettingsForPreview(card, type, base={}){
     settings.effectType = card.querySelector('.f-effType')?.value || settings.effectType || 'rainbow';
     settings.effectSpeed = Math.max(0, Math.min(100, Number(card.querySelector('.f-effSpeed')?.value ?? settings.effectSpeed ?? 40)));
     settings.effectIntensity = Math.max(0, Math.min(100, Number(card.querySelector('.f-effIntensity')?.value ?? settings.effectIntensity ?? 60)));
+    settings.staleIndicatorEnabled = !!card.querySelector('.f-staleEnable')?.checked;
+    settings.staleTimeoutSec = Math.max(1, Number(card.querySelector('.f-staleTimeout')?.value ?? settings.staleTimeoutSec ?? 30));
     settings.overtakeEnabled = !!card.querySelector('.f-ovtEnable')?.checked;
     settings.overtakeDurationSec = Number(card.querySelector('.f-ovtDur')?.value ?? settings.overtakeDurationSec ?? 30);
     settings.overtakeSoundMode = card.querySelector('.f-ovtSound')?.value || settings.overtakeSoundMode || 'off';
@@ -1752,6 +1759,8 @@ mosquitto_pub -h <broker> -p 1883 -u <user> -P '<pass>' \\
       c.querySelector('.f-effType').value = d.settings?.effectType || 'rainbow';
       c.querySelector('.f-effSpeed').value = Number.isFinite(Number(d.settings?.effectSpeed)) ? Number(d.settings?.effectSpeed) : 40;
       c.querySelector('.f-effIntensity').value = Number.isFinite(Number(d.settings?.effectIntensity)) ? Number(d.settings?.effectIntensity) : 60;
+      c.querySelector('.f-staleEnable').checked = !!d.settings?.staleIndicatorEnabled;
+      c.querySelector('.f-staleTimeout').value = Number.isFinite(Number(d.settings?.staleTimeoutSec)) ? Number(d.settings?.staleTimeoutSec) : 30;
       c.querySelector('.f-ovtEnable').checked = !!d.settings?.overtakeEnabled;
       c.querySelector('.f-ovtDur').value = Number.isFinite(Number(d.settings?.overtakeDurationSec)) ? Number(d.settings?.overtakeDurationSec) : 30;
       c.querySelector('.f-ovtSound').value = d.settings?.overtakeSoundMode || 'off';
@@ -1941,6 +1950,8 @@ mosquitto_pub -h <broker> -p 1883 -u <user> -P '<pass>' \\
           body.settings.effectType = c.querySelector('.f-effType')?.value || 'rainbow';
           body.settings.effectSpeed = Math.max(0, Math.min(100, Number(c.querySelector('.f-effSpeed')?.value ?? 40)));
           body.settings.effectIntensity = Math.max(0, Math.min(100, Number(c.querySelector('.f-effIntensity')?.value ?? 60)));
+          body.settings.staleIndicatorEnabled = !!c.querySelector('.f-staleEnable')?.checked;
+          body.settings.staleTimeoutSec = Math.max(1, Number(c.querySelector('.f-staleTimeout')?.value ?? 30));
           body.settings.overtakeEnabled = !!c.querySelector('.f-ovtEnable')?.checked;
           body.settings.overtakeDurationSec = Number(c.querySelector('.f-ovtDur')?.value ?? 30);
           body.settings.overtakeSoundMode = c.querySelector('.f-ovtSound')?.value || 'off';

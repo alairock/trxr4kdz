@@ -9,7 +9,9 @@ CanvasScreen::CanvasScreen() {
 }
 
 void CanvasScreen::activate() {
-    _lastPush = millis();
+    unsigned long now = millis();
+    if (_lastPush == 0) _lastPush = now;
+    if (_lastReceiveMs == 0) _lastReceiveMs = now;
     _dirty = true;
 }
 
@@ -54,7 +56,9 @@ void CanvasScreen::pushPixels(const uint8_t* rgb, size_t len) {
         uint8_t b = rgb[i * 3 + 2];
         _framebuffer[i] = DisplayManager::rgb565(r, g, b);
     }
-    _lastPush = millis();
+    unsigned long now = millis();
+    _lastPush = now;
+    _lastReceiveMs = now;
     _dirty = true;
     saveFramebuffer();
 }
@@ -118,9 +122,18 @@ void CanvasScreen::pushDrawCommands(const JsonObjectConst& cmd) {
         }
     }
 
-    _lastPush = millis();
+    unsigned long now = millis();
+    _lastPush = now;
+    _lastReceiveMs = now;
     _dirty = true;
     saveFramebuffer();
+}
+
+bool CanvasScreen::shouldShowStaleOverlay(unsigned long now) const {
+    if (!_staleIndicatorEnabled) return false;
+    if (_staleTimeoutSec == 0) return false;
+    if (_lastReceiveMs == 0) return false;
+    return (now - _lastReceiveMs) >= (_staleTimeoutSec * 1000UL);
 }
 
 void CanvasScreen::renderEffectFrame(uint16_t* out, unsigned long now) {
@@ -309,6 +322,7 @@ void CanvasScreen::composedFrame(uint16_t* out, unsigned long now) {
         uint16_t fg = _framebuffer[i];
         out[i] = (fg != 0) ? fg : bg[i];
     }
+
 }
 
 bool CanvasScreen::update(DisplayManager& display, unsigned long now) {
@@ -327,6 +341,18 @@ bool CanvasScreen::update(DisplayManager& display, unsigned long now) {
             if (c != 0) display.drawPixel(x, y, c);
         }
     }
+
+    if (shouldShowStaleOverlay(now)) {
+        const String msg = "disconnected";
+        const uint16_t red = DisplayManager::rgb565(255, 0, 0);
+        const uint8_t charW = DisplayManager::fontCharWidth(1);
+        const int16_t textW = msg.length() * charW;
+        const int16_t travel = textW + 32;
+        const int16_t x = 32 - ((now / 150) % travel);
+        const int16_t y = (8 - DisplayManager::fontHeight(1)) / 2;
+        display.drawFontText(x, y, msg, red, 1);
+    }
+
     return true;
 }
 
@@ -354,6 +380,13 @@ void CanvasScreen::configure(const JsonObjectConst& cfg) {
         _effectIntensity = (uint8_t)v;
     }
 
+    if (cfg["staleIndicatorEnabled"].is<bool>()) _staleIndicatorEnabled = cfg["staleIndicatorEnabled"].as<bool>();
+    if (cfg["staleTimeoutSec"].is<int>()) {
+        int v = cfg["staleTimeoutSec"].as<int>();
+        if (v < 1) v = 1;
+        _staleTimeoutSec = (uint32_t)v;
+    }
+
     // Try to load persisted framebuffer
     loadFramebuffer();
 }
@@ -370,4 +403,7 @@ void CanvasScreen::serialize(JsonObject& out) const {
     out["effectType"] = _effectType;
     out["effectSpeed"] = _effectSpeed;
     out["effectIntensity"] = _effectIntensity;
+
+    out["staleIndicatorEnabled"] = _staleIndicatorEnabled;
+    out["staleTimeoutSec"] = _staleTimeoutSec;
 }

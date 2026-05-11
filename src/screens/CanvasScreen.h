@@ -32,10 +32,12 @@ public:
 private:
     String framebufferPath() const;
     void renderEffectFrame(uint16_t* out, unsigned long now);
+    bool shouldShowStaleOverlay(unsigned long now) const;
 
     uint16_t _framebuffer[32 * 8]; // 512 bytes
     uint32_t _lifetime = 0;         // 0 = indefinite (no auto-disable)
     unsigned long _lastPush = 0;
+    unsigned long _lastReceiveMs = 0;
     bool _dirty = true;
 
     bool _overtakeEnabled = false;
@@ -48,4 +50,7 @@ private:
     String _effectType = "rainbow"; // rainbow|plasma|twinkle|noise
     uint8_t _effectSpeed = 50;        // 1..100
     uint8_t _effectIntensity = 60;    // 0..100
+
+    bool _staleIndicatorEnabled = false;
+    uint32_t _staleTimeoutSec = 30;
 };
